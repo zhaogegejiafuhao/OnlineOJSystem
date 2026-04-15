@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:insert="~{fragment/header :: header}"></th:block>
+    <meta content="text/html;charset=UTF-8" http-equiv="Content-Type">
+    <title>Admin-Contests</title>
+    <script src="/js/pagination.js"></script>
+</head>
+<body>
+<main class="ui container" id="contest">
+    <div class="ui segment">
+        <div class="ui top attached tabular menu">
+            <div class="item" :class="{active:tab=='all'}" v-on:click="switchTab('all')">所有比赛</div>
+            <div class="item" :class="{active:tab=='pending'}" v-on:click="switchTab('pending')">待审核比赛</div>
+        </div>
+        <form class="ui icon input left floated" v-on:submit.prevent="search_contest()">
+            <input type="text" v-model="search_string" placeholder="搜索比赛">
+            <i class="search link icon" v-on:click="search_contest()"></i>
+        </form>
+        <a class="ui button right floated" href="/contest/create/0"><i class="plus icon green"></i>Create Contest</a>
+    </div>
+    <div class="ui centered grid">
+        <div class="ui pagination menu">
+            <pagination :class="{disabled:first}" content='<i class="angle double left icon"></i>'
+                        v-on:change_page="get_page"
+                        v-bind:to_page="0"></pagination>
+            <pagination :class="{disabled:first}" content="<i class='angle left icon'></i>"
+                        v-on:change_page="get_page" v-bind:to_page="number-1"></pagination>
+            <div v-for="n in npage">
+                <pagination :class="{active:number == n}" v-bind:content="n+1" v-on:change_page="get_page"
+                            v-bind:to_page="n"></pagination>
+            </div>
+            <pagination :class="{disabled:last}" content='<i class="angle right icon"></i>'
+                        v-on:change_page="get_page" v-bind:to_page="number+1"></pagination>
+            <pagination :class="{disabled:last}" content='<i class="angle double right icon"></i>'
+                        v-on:change_page="get_page"
+                        v-bind:to_page="totalPages-1"></pagination>
+        </div>
+    </div>
+    <div class="ui segment">
+        <div class="ui link celled list selection">
+                <div class="item" v-for="c in contests">
+                    <div class="content left floated">
+                        <a class="header" :href="'/contest/'+c.id" v-html="c.id+'---'+c.title"></a>
+                        <div class="description">
+                            {{c.description.substring(0,35)}} 创建者：{{c.creator.name}}
+                        </div>
+                        <div class="ui small horizontal labels">
+                            <div class="ui label" :class="{yellow:c.status=='DRAFT',blue:c.status=='PENDING',green:c.status=='APPROVED',red:c.status=='REJECTED'}">
+                                {{c.status}}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="right floated">
+                        <div class="ui small label">{{c.runStatu}}
+                            <div class="detail"> {{c.normalStartTime}} <i class="ui hourglass icon"
+                                                                          :class="{start:c.runStatu=='未开始',half:c.runStatu=='进行中',end:c.runStatu=='已结束'}"></i>
+                                {{c.normalEndTime}}
+                            </div>
+                        </div>
+                        <div class="ui green button small" v-on:click="approve_contest(c.id)" v-if="c.status=='PENDING'">
+                            Approve
+                        </div>
+                        <div class="ui red button small" v-on:click="reject_contest(c.id)" v-if="c.status=='PENDING'">
+                            Reject
+                        </div>
+                        <div class="ui inverted red button small" v-on:click="delete_contest(c.id)">
+                            Delete
+                        </div>
+                        <div class="ui orange button small" v-on:click="force_end_contest(c.id)" v-if="c.runStatu=='进行中'">
+                            Force End
+                        </div>
+                    </div>
+                </div>
+            </div>
+    </div>
+    <div class="ui centered grid">
+        <div class="ui pagination menu">
+            <pagination :class="{disabled:first}" content='<i class="angle double left icon"></i>'
+                        v-on:change_page="get_page"
+                        v-bind:to_page="0"></pagination>
+            <pagination :class="{disabled:first}" content="<i class='angle left icon'></i>"
+                        v-on:change_page="get_page" v-bind:to_page="number-1"></pagination>
+            <div v-for="n in npage">
+                <pagination :class="{active:number == n}" v-bind:content="n+1" v-on:change_page="get_page"
+                            v-bind:to_page="n"></pagination>
+            </div>
+            <pagination :class="{disabled:last}" content='<i class="angle right icon"></i>'
+                        v-on:change_page="get_page" v-bind:to_page="number+1"></pagination>
+            <pagination :class="{disabled:last}" content='<i class="angle double right icon"></i>'
+                        v-on:change_page="get_page"
+                        v-bind:to_page="totalPages-1"></pagination>
+        </div>
+    </div>
+</main>
+<script>
+    var contests = new Vue({
+        el: "#contest",
+        data: {
+            contests: [],
+            search_string: "",
+            ready: false,
+            number: 0,
+            first: true,
+            last: true,
+            totalPages: 1,
+            totalElements: 1,
+            size: 30,
+            empty: false,
+            npage: [],
+            tab: "all"
+        },
+        methods: {
+            search_contest() {
+                this.get_page(0);
+            },
+            switchTab(newTab) {
+                this.tab = newTab;
+                this.get_page(0);
+            },
+            approve_contest(cid) {
+                var that = this;
+                axios.post("/api/admin/contest/approve/" + cid)
+                    .then(function (res) {
+                        alert(res.data.message);
+                        if (res.data.code == 200) {
+                            that.get_page(that.number);
+                        }
+                    })
+                    .catch(function (e) {
+                        console.log(e.response.data);
+                    });
+            },
+            reject_contest(cid) {
+                var that = this;
+                axios.post("/api/admin/contest/reject/" + cid)
+                    .then(function (res) {
+                        alert(res.data.message);
+                        if (res.data.code == 200) {
+                            that.get_page(that.number);
+                        }
+                    })
+                    .catch(function (e) {
+                        console.log(e.response.data);
+                    });
+            },
+            delete_contest(cid) {
+                if (!confirm("确定要删除此比赛吗？\n删除后无法恢复！\n将同时删除所有相关提交记录和题目关联！")) {
+                    return;
+                }
+                var that = this;
+                axios.delete("/api/admin/contest/" + cid)
+                    .then(function (res) {
+                        alert(res.data.message);
+                        if (res.data.code == 200) {
+                            that.get_page(that.number);
+                        }
+                    })
+                    .catch(function (e) {
+                        console.log(e.response.data);
+                    });
+            },
+            force_end_contest(cid) {
+                if (!confirm("确定要强制结束此比赛吗？")) {
+                    return;
+                }
+                var that = this;
+                axios.post("/api/admin/contest/end/" + cid)
+                    .then(function (res) {
+                        alert(res.data.message);
+                        if (res.data.code == 200) {
+                            that.get_page(that.number);
+                        }
+                    })
+                    .catch(function (e) {
+                        console.log(e.response.data);
+                    });
+            },
+            get_page(to_page) {
+                if (to_page < 0 || to_page >= this.totalPages)
+                    return;
+                this.ready = false;
+                var that = this;
+                var url;
+                if (that.tab === 'pending') {
+                    url = "/api/admin/contest/pending?page=" + to_page;
+                } else {
+                    url = "/api/admin/contest?page=" + to_page + "&search=" + this.search_string;
+                }
+                axios.get(url)
+                    .then(function (res) {
+                        if (res.data.code === 200) {
+                            that.contests = res.data.data.content;
+                            that.totalElements = res.data.data.totalElements;
+                            that.size = res.data.data.size;
+                            that.totalPages = res.data.data.totalPages;
+                            that.last = res.data.data.last;
+                            that.first = res.data.data.first;
+                            that.number = res.data.data.number;
+                            that.empty = res.data.data.empty;
+                            that.npage = [];
+                            for (var i = Math.max(0, that.number - 5); i < Math.min(that.totalPages, that.number + 6); i++) {
+                                that.npage.push(i);
+                            }
+                            that.ready = true;
+                        } else {
+                            console.log(res.data.data);
+                        }
+                    }).catch(function (e) {
+                    console.log(e.response.data);
+                });
+            }
+        },
+        created() {
+            this.get_page(0);
+        }
+    });
+</script>
+</body>
+</html>

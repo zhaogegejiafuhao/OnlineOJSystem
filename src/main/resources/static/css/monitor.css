@@ -1,0 +1,138 @@
+/* Monitor Dashboard Styles */
+#monitor-dashboard {
+    padding: 20px 0;
+}
+
+#monitor-dashboard .segment {
+    margin-bottom: 20px;
+}
+
+#monitor-dashboard .statistics {
+    margin: 20px 0;
+}
+
+#monitor-dashboard .grid {
+    margin: 20px 0;
+}
+
+#monitor-dashboard .chart-container {
+    height: 300px;
+    width: 100%;
+}
+
+#monitor-dashboard .table {
+    margin-top: 20px;
+}
+
+#monitor-dashboard .loading {
+    padding: 40px;
+    text-align: center;
+}
+
+#monitor-dashboard .message {
+    margin: 20px 0;
+}
+
+#monitor-dashboard .header {
+    margin-bottom: 15px;
+}
+
+#monitor-dashboard .divider {
+    margin: 20px 0;
+}
+
+/* System Monitor Styles */
+#system-monitor {
+    padding: 20px 0;
+}
+
+#system-monitor .segment {
+    margin-bottom: 20px;
+}
+
+#system-monitor .grid {
+    margin: 20px 0;
+}
+
+#system-monitor .chart-container {
+    height: 300px;
+    width: 100%;
+}
+
+#system-monitor .table {
+    margin-top: 20px;
+}
+
+/* Alarms Styles */
+#alarms {
+    padding: 20px 0;
+}
+
+#alarms .segment {
+    margin-bottom: 20px;
+}
+
+#alarms .table {
+    margin-top: 20px;
+}
+
+#alarms .filter {
+    margin-bottom: 20px;
+}
+
+/* Performance Styles */
+#performance {
+    padding: 20px 0;
+}
+
+#performance .segment {
+    margin-bottom: 20px;
+}
+
+#performance .grid {
+    margin: 20px 0;
+}
+
+#performance .chart-container {
+    height: 300px;
+    width: 100%;
+}
+
+/* Logs Styles */
+#logs {
+    padding: 20px 0;
+}
+
+#logs .segment {
+    margin-bottom: 20px;
+}
+
+#logs .table {
+    margin-top: 20px;
+}
+
+#logs .filter {
+    margin-bottom: 20px;
+}
+
+#logs .search {
+    margin-bottom: 20px;
+}
+
+/* Responsive Adjustments */
+@media only screen and (max-width: 767px) {
+    #monitor-dashboard .ui.grid > .column:not(.row) {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    
+    #system-monitor .ui.grid > .column:not(.row) {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    
+    #performance .ui.grid > .column:not(.row) {
+        padding-left: 0;
+        padding-right: 0;
+    }
+}

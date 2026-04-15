@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:insert="~{fragment/header :: header}"></th:block>
+    <meta charset="UTF-8">
+    <title>AI助手</title>
+    <link rel="stylesheet" href="/css/ai.css">
+</head>
+<body>
+<main class="ui container" id="ai-assistant">
+    <div class="ui segment raised">
+        <h2 class="ui header">AI助手</h2>
+        <div class="ui divider"></div>
+        
+        <!-- 功能选择标签页 -->
+        <div class="ui top attached tabular menu">
+            <a class="item active" data-tab="problem">生成题目</a>
+            <a class="item" data-tab="analysis">生成解析</a>
+            <a class="item" data-tab="solution">生成解答</a>
+            <a class="item" data-tab="history">生成历史</a>
+            <a class="item" data-tab="stats">统计信息</a>
+        </div>
+        
+        <!-- 生成题目 -->
+        <div class="ui bottom attached tab segment active" data-tab="problem">
+            <div class="ui form">
+                <div class="field">
+                    <label>关键词</label>
+                    <input type="text" placeholder="输入题目关键词，多个关键词用逗号分隔" v-model="problemKeywords">
+                </div>
+                <div class="field">
+                    <label>难度级别</label>
+                    <select class="ui dropdown" v-model="problemDifficulty">
+                        <option value="简单">简单</option>
+                        <option value="中等">中等</option>
+                        <option value="困难">困难</option>
+                    </select>
+                </div>
+                <button class="ui primary button" @click="generateProblem" :disabled="generating">
+                    <i class="spinner loading icon" v-if="generating"></i>
+                    {{generating ? '生成中...' : '生成题目'}}
+                </button>
+            </div>
+            <div class="ui divider"></div>
+            <div class="ui loading segment" v-if="generating">
+                <p>AI正在生成题目，请稍候...</p>
+            </div>
+            <div v-else-if="problemResult">
+                <div class="ui segment">
+                    <h3 class="ui header">生成结果</h3>
+                    <div class="ui divided list">
+                        <div class="item">
+                            <div class="content">
+                                <div class="header">题目内容</div>
+                                <div class="description" v-html="problemResult.generatedContent"></div>
+                            </div>
+                        </div>
+                        <div class="item" v-if="problemResult.evaluation">
+                            <div class="content">
+                                <div class="header">评估</div>
+                                <div class="description">{{problemResult.evaluation}}</div>
+                            </div>
+                        </div>
+                        <div class="item">
+                            <div class="content">
+                                <div class="header">状态</div>
+                                <div class="description">{{problemResult.status}}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 生成解析 -->
+        <div class="ui bottom attached tab segment" data-tab="analysis">
+            <div class="ui form">
+                <div class="field">
+                    <label>题目内容</label>
+                    <textarea rows="10" placeholder="输入题目内容" v-model="analysisProblemContent"></textarea>
+                </div>
+                <button class="ui primary button" @click="generateAnalysis" :disabled="generatingAnalysis">
+                    <i class="spinner loading icon" v-if="generatingAnalysis"></i>
+                    {{generatingAnalysis ? '生成中...' : '生成解析'}}
+                </button>
+            </div>
+            <div class="ui divider"></div>
+            <div class="ui loading segment" v-if="generatingAnalysis">
+                <p>AI正在生成解析，请稍候...</p>
+            </div>
+            <div v-else-if="analysisResult">
+                <div class="ui segment">
+                    <h3 class="ui header">生成结果</h3>
+                    <div class="ui divided list">
+                        <div class="item">
+                            <div class="content">
+                                <div class="header">解析内容</div>
+                                <div class="description" v-html="analysisResult.generatedContent"></div>
+                            </div>
+                        </div>
+                        <div class="item">
+                            <div class="content">
+                                <div class="header">状态</div>
+                                <div class="description">{{analysisResult.status}}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 生成解答 -->
+        <div class="ui bottom attached tab segment" data-tab="solution">
+            <div class="ui form">
+                <div class="field">
+                    <label>题目内容</label>
+                    <textarea rows="10" placeholder="输入题目内容" v-model="solutionProblemContent"></textarea>
+                </div>
+                <div class="field">
+                    <label>编程语言</label>
+                    <select class="ui dropdown" v-model="solutionLanguage">
+                        <option value="Java">Java</option>
+                        <option value="Python">Python</option>
+                        <option value="C++">C++</option>
+                        <option value="C">C</option>
+                        <option value="Go">Go</option>
+                    </select>
+                </div>
+                <button class="ui primary button" @click="generateSolution" :disabled="generatingSolution">
+                    <i class="spinner loading icon" v-if="generatingSolution"></i>
+                    {{generatingSolution ? '生成中...' : '生成解答'}}
+                </button>
+            </div>
+            <div class="ui divider"></div>
+            <div class="ui loading segment" v-if="generatingSolution">
+                <p>AI正在生成解答，请稍候...</p>
+            </div>
+            <div v-else-if="solutionResult">
+                <div class="ui segment">
+                    <h3 class="ui header">生成结果</h3>
+                    <div class="ui divided list">
+                        <div class="item">
+                            <div class="content">
+                                <div class="header">解答内容</div>
+                                <div class="description" v-html="solutionResult.generatedContent"></div>
+                            </div>
+                        </div>
+                        <div class="item">
+                            <div class="content">
+                                <div class="header">状态</div>
+                                <div class="description">{{solutionResult.status}}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 生成历史 -->
+        <div class="ui bottom attached tab segment" data-tab="history">
+            <div class="ui loading segment" v-if="!historyReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="history.content.length === 0">
+                    <div class="header">暂无生成历史</div>
+                    <p>开始使用AI助手生成内容</p>
+                </div>
+                <table class="ui celled table" v-else>
+                    <thead>
+                        <tr>
+                            <th>类型</th>
+                            <th>模型</th>
+                            <th>状态</th>
+                            <th>生成时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in history.content" :key="item.id">
+                            <td>{{item.type}}</td>
+                            <td>{{item.model}}</td>
+                            <td>
+                                <span class="ui label" :class="{green: item.status === 'COMPLETED', yellow: item.status === 'PROCESSING', red: item.status === 'FAILED'}">
+                                    {{item.status}}
+                                </span>
+                            </td>
+                            <td>{{formatTime(item.createTime)}}</td>
+                            <td>
+                                <button class="ui blue button" @click="viewGeneration(item.id)">查看</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="ui pagination menu" v-if="history.totalPages > 1">
+                    <a class="item" @click="changeHistoryPage(0)" :class="{disabled: history.number === 0}">首页</a>
+                    <a class="item" @click="changeHistoryPage(history.number - 1)" :class="{disabled: history.number === 0}">上一页</a>
+                    <a class="item" @click="changeHistoryPage(history.number + 1)" :class="{disabled: history.number === history.totalPages - 1}">下一页</a>
+                    <a class="item" @click="changeHistoryPage(history.totalPages - 1)" :class="{disabled: history.number === history.totalPages - 1}">末页</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="ui bottom attached tab segment" data-tab="stats">
+            <div class="ui loading segment" v-if="!statsReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui three statistics">
+                    <div class="statistic">
+                        <div class="value">{{stats.totalGenerations}}</div>
+                        <div class="label">总生成次数</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.completedGenerations}}</div>
+                        <div class="label">完成次数</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.avgResponseTime.toFixed(2)}}s</div>
+                        <div class="label">平均响应时间</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    var aiAssistant = new Vue({
+        el: "#ai-assistant",
+        data: {
+            // 生成题目
+            problemKeywords: '',
+            problemDifficulty: '中等',
+            problemResult: null,
+            generating: false,
+            
+            // 生成解析
+            analysisProblemContent: '',
+            analysisResult: null,
+            generatingAnalysis: false,
+            
+            // 生成解答
+            solutionProblemContent: '',
+            solutionLanguage: 'Java',
+            solutionResult: null,
+            generatingSolution: false,
+            
+            // 生成历史
+            history: {content: []},
+            historyReady: false,
+            
+            // 统计信息
+            stats: null,
+            statsReady: false
+        },
+        mounted: function() {
+            this.initTabs();
+            this.loadHistory();
+            this.loadStats();
+        },
+        methods: {
+            initTabs: function() {
+                $('.tabular.menu .item').tab();
+            },
+            generateProblem: function() {
+                if (!this.problemKeywords) {
+                    alert('请输入关键词');
+                    return;
+                }
+                this.generating = true;
+                this.problemResult = null;
+                var that = this;
+                axios.post('/api/ai/generate/problem', {
+                    keywords: this.problemKeywords,
+                    difficulty: this.problemDifficulty
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.problemResult = res.data.data;
+                    } else {
+                        alert('生成失败: ' + res.data.message);
+                    }
+                    that.generating = false;
+                }).catch(function(error) {
+                    console.error(error);
+                    alert('生成失败: ' + error.message);
+                    that.generating = false;
+                });
+            },
+            generateAnalysis: function() {
+                if (!this.analysisProblemContent) {
+                    alert('请输入题目内容');
+                    return;
+                }
+                this.generatingAnalysis = true;
+                this.analysisResult = null;
+                var that = this;
+                axios.post('/api/ai/generate/analysis', {
+                    problemContent: this.analysisProblemContent
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.analysisResult = res.data.data;
+                    } else {
+                        alert('生成失败: ' + res.data.message);
+                    }
+                    that.generatingAnalysis = false;
+                }).catch(function(error) {
+                    console.error(error);
+                    alert('生成失败: ' + error.message);
+                    that.generatingAnalysis = false;
+                });
+            },
+            generateSolution: function() {
+                if (!this.solutionProblemContent) {
+                    alert('请输入题目内容');
+                    return;
+                }
+                this.generatingSolution = true;
+                this.solutionResult = null;
+                var that = this;
+                axios.post('/api/ai/generate/solution', {
+                    problemContent: this.solutionProblemContent,
+                    language: this.solutionLanguage
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.solutionResult = res.data.data;
+                    } else {
+                        alert('生成失败: ' + res.data.message);
+                    }
+                    that.generatingSolution = false;
+                }).catch(function(error) {
+                    console.error(error);
+                    alert('生成失败: ' + error.message);
+                    that.generatingSolution = false;
+                });
+            },
+            loadHistory: function(page = 0) {
+                this.historyReady = false;
+                var that = this;
+                axios.get('/api/ai/generations', {
+                    params: {
+                        page: page,
+                        size: 20
+                    }
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.history = res.data.data;
+                        that.historyReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            changeHistoryPage: function(page) {
+                this.loadHistory(page);
+            },
+            loadStats: function() {
+                this.statsReady = false;
+                var that = this;
+                axios.get('/api/ai/stats').then(function(res) {
+                    if (res.data.code === 200) {
+                        that.stats = res.data.data;
+                        that.statsReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            viewGeneration: function(id) {
+                // 查看生成详情
+                var that = this;
+                var item = this.history.content.find(function(i) { return i.id === id; });
+                if (item) {
+                    if (item.type === 'problem') {
+                        this.problemResult = item;
+                        setTimeout(function() { $('.tabular.menu .item[data-tab="problem"]').click(); }, 100);
+                    } else if (item.type === 'analysis') {
+                        this.analysisResult = item;
+                        setTimeout(function() { $('.tabular.menu .item[data-tab="analysis"]').click(); }, 100);
+                    } else if (item.type === 'solution') {
+                        this.solutionResult = item;
+                        setTimeout(function() { $('.tabular.menu .item[data-tab="solution"]').click(); }, 100);
+                    }
+                }
+            },
+            formatTime: function(timeStr) {
+                var date = new Date(timeStr);
+                return date.toLocaleString();
+            }
+        }
+    });
+</script>
+</body>
+</html>

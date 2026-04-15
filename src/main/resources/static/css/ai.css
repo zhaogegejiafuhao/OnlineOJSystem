@@ -1,0 +1,130 @@
+/* AI Assistant Styles */
+.ai-assistant-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.ai-form-group {
+    margin-bottom: 20px;
+}
+
+.ai-form-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #333;
+}
+
+.ai-form-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.ai-form-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+}
+
+.ai-generate-button {
+    background-color: #1890ff;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.ai-generate-button:hover {
+    background-color: #40a9ff;
+}
+
+.ai-result-container {
+    margin-top: 30px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+.ai-result-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.ai-result-section {
+    margin-bottom: 15px;
+}
+
+.ai-result-label {
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.ai-result-content {
+    white-space: pre-wrap;
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #f0f0f0;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.ai-error-message {
+    color: #ff4d4f;
+    background-color: #fff1f0;
+    border: 1px solid #ffccc7;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.ai-success-message {
+    color: #52c41a;
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.ai-loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #1890ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.ai-loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.ai-loading-text {
+    margin-left: 10px;
+    color: #666;
+}

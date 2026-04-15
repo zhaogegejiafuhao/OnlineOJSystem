@@ -1,0 +1,60 @@
+version: '3'
+services:
+  db:
+    image: mysql:8.0.19
+    container_name: oj-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: oj
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      LANG: C.UTF-8
+    ports:
+      - "13306:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./init_data.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --init-connect='SET NAMES utf8mb4;'
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p1234"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oj-network
+
+  redis:
+    image: redis:latest
+    container_name: oj-redis
+    restart: always
+    ports:
+      - "16379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - oj-network
+
+  judger:
+    # 使用本地源码构建
+    build: ./judger_source
+    # image: registry.cn-hangzhou.aliyuncs.com/jinmingyi/judgerserver:latest
+    container_name: oj-judger
+    restart: always
+    privileged: true
+    ports:
+      - "12345:5001"
+    volumes:
+      - ./data/ojdata:/ojdata:ro
+      - ./data/judger_log:/log
+    environment:
+      - OJ_BACKEND_CALLBACK=http://host.docker.internal:8080/judge/callback
+      - BACKEND_URL=http://host.docker.internal:8080/judge/callback
+      - SERVICE_URL=http://judger:5001
+      - SERVICE_PORT=5001
+    networks:
+      - oj-network
+
+networks:
+  oj-network:
+    driver: bridge

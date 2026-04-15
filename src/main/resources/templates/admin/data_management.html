@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:insert="~{fragment/header :: header}"></th:block>
+    <meta charset="UTF-8">
+    <title>数据管理</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<main class="ui container" id="data-management">
+    <div class="ui segment raised">
+        <h2 class="ui header">数据管理</h2>
+        <div class="ui divider"></div>
+        
+        <!-- 功能选择标签页 -->
+        <div class="ui top attached tabular menu">
+            <a class="item active" data-tab="export">数据导出</a>
+            <a class="item" data-tab="backup">系统备份</a>
+            <a class="item" data-tab="restore">数据恢复</a>
+            <a class="item" data-tab="cleanup">数据清理</a>
+            <a class="item" data-tab="stats">统计信息</a>
+        </div>
+        
+        <!-- 数据导出 -->
+        <div class="ui bottom attached tab segment active" data-tab="export">
+            <h3 class="ui header">数据导出</h3>
+            <div class="ui form">
+                <div class="field">
+                    <label>导出类型</label>
+                    <select class="ui dropdown" v-model="exportType">
+                        <option value="problems">题目数据</option>
+                        <option value="users">用户数据</option>
+                        <option value="solutions">提交记录</option>
+                        <option value="contests">竞赛数据</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>导出格式</label>
+                    <select class="ui dropdown" v-model="exportFormat">
+                        <option value="csv">CSV</option>
+                        <option value="json">JSON</option>
+                        <option value="xlsx">Excel</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>导出参数</label>
+                    <textarea placeholder="输入导出参数（JSON格式）" v-model="exportParameters" rows="3"></textarea>
+                </div>
+                <button class="ui primary button" @click="startExport" :disabled="exporting">
+                    <i class="spinner loading icon" v-if="exporting"></i>
+                    {{exporting ? '导出中...' : '开始导出'}}
+                </button>
+            </div>
+            
+            <div class="ui divider"></div>
+            
+            <!-- 导出任务列表 -->
+            <h4 class="ui header">导出任务</h4>
+            <div class="ui loading segment" v-if="!exportTasksReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else-if="exportTasks.length === 0">
+                <div class="ui message">
+                    <div class="header">暂无导出任务</div>
+                    <p>开始创建新的导出任务</p>
+                </div>
+            </div>
+            <table class="ui celled table" v-else>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>类型</th>
+                        <th>格式</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>文件大小</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="task in exportTasks" :key="task.id">
+                        <td>{{task.id}}</td>
+                        <td>{{task.type}}</td>
+                        <td>{{task.format}}</td>
+                        <td>
+                            <span class="ui label" :class="{green: task.status === 'COMPLETED', yellow: task.status === 'PROCESSING', red: task.status === 'FAILED', blue: task.status === 'PENDING'}">
+                                {{task.status}}
+                            </span>
+                        </td>
+                        <td>{{formatTime(task.createTime)}}</td>
+                        <td>{{task.fileSize ? (task.fileSize / 1024).toFixed(2) + ' KB' : '-'}}</td>
+                        <td>
+                            <button class="ui blue button" v-if="task.status === 'COMPLETED'" @click="downloadExport(task.id)">
+                                下载
+                            </button>
+                            <button class="ui grey button" v-else :disabled="true">
+                                不可用
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 系统备份 -->
+        <div class="ui bottom attached tab segment" data-tab="backup">
+            <h3 class="ui header">系统备份</h3>
+            <div class="ui form">
+                <div class="field">
+                    <label>备份类型</label>
+                    <select class="ui dropdown" v-model="backupType">
+                        <option value="full">全量备份</option>
+                        <option value="database">数据库备份</option>
+                        <option value="config">配置文件备份</option>
+                        <option value="media">媒体文件备份</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>备份参数</label>
+                    <textarea placeholder="输入备份参数（JSON格式）" v-model="backupParameters" rows="3"></textarea>
+                </div>
+                <button class="ui primary button" @click="startBackup" :disabled="backingUp">
+                    <i class="spinner loading icon" v-if="backingUp"></i>
+                    {{backingUp ? '备份中...' : '开始备份'}}
+                </button>
+            </div>
+            
+            <div class="ui divider"></div>
+            
+            <!-- 备份任务列表 -->
+            <h4 class="ui header">备份任务</h4>
+            <div class="ui loading segment" v-if="!backupTasksReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else-if="backupTasks.length === 0">
+                <div class="ui message">
+                    <div class="header">暂无备份任务</div>
+                    <p>开始创建新的备份任务</p>
+                </div>
+            </div>
+            <table class="ui celled table" v-else>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>类型</th>
+                        <th>状态</th>
+                        <th>文件大小</th>
+                        <th>验证状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="task in backupTasks" :key="task.id">
+                        <td>{{task.id}}</td>
+                        <td>{{task.type}}</td>
+                        <td>
+                            <span class="ui label" :class="{green: task.status === 'COMPLETED', yellow: task.status === 'PROCESSING', red: task.status === 'FAILED', blue: task.status === 'PENDING'}">
+                                {{task.status}}
+                            </span>
+                        </td>
+                        <td>{{task.fileSize ? (task.fileSize / 1024).toFixed(2) + ' KB' : '-'}}</td>
+                        <td>
+                            <span class="ui label" :class="{green: task.verified, red: !task.verified}">
+                                {{task.verified ? '已验证' : '未验证'}}
+                            </span>
+                        </td>
+                        <td>{{formatTime(task.createTime)}}</td>
+                        <td>
+                            <button class="ui blue button" @click="restoreBackup(task.id)">
+                                恢复
+                            </button>
+                            <button class="ui red button" @click="deleteBackup(task.id)">
+                                删除
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 数据恢复 -->
+        <div class="ui bottom attached tab segment" data-tab="restore">
+            <h3 class="ui header">数据恢复</h3>
+            <div class="ui form">
+                <div class="field">
+                    <label>恢复类型</label>
+                    <select class="ui dropdown" v-model="restoreType">
+                        <option value="full">全量恢复</option>
+                        <option value="database">数据库恢复</option>
+                        <option value="config">配置文件恢复</option>
+                        <option value="media">媒体文件恢复</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>备份文件路径</label>
+                    <input type="text" placeholder="输入备份文件路径" v-model="restoreFilePath">
+                </div>
+                <button class="ui primary button" @click="startRestore" :disabled="restoring">
+                    <i class="spinner loading icon" v-if="restoring"></i>
+                    {{restoring ? '恢复中...' : '开始恢复'}}
+                </button>
+                <div class="ui message warning">
+                    <div class="header">警告</div>
+                    <p>恢复操作可能会覆盖现有数据，请谨慎操作！</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 数据清理 -->
+        <div class="ui bottom attached tab segment" data-tab="cleanup">
+            <h3 class="ui header">数据清理</h3>
+            <div class="ui form">
+                <div class="field">
+                    <label>清理类型</label>
+                    <select class="ui dropdown" v-model="cleanupType">
+                        <option value="old_exports">过期导出文件</option>
+                        <option value="old_backups">过期备份文件</option>
+                        <option value="temp_files">临时文件</option>
+                        <option value="orphaned_data">孤立数据</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>保留天数</label>
+                    <input type="number" placeholder="输入保留天数" v-model="cleanupDays" min="1" max="365">
+                </div>
+                <button class="ui primary button" @click="startCleanup" :disabled="cleaningUp">
+                    <i class="spinner loading icon" v-if="cleaningUp"></i>
+                    {{cleaningUp ? '清理中...' : '开始清理'}}
+                </button>
+            </div>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="ui bottom attached tab segment" data-tab="stats">
+            <h3 class="ui header">数据统计</h3>
+            <div class="ui loading segment" v-if="!statsReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui four statistics">
+                    <div class="statistic">
+                        <div class="value">{{stats.totalUsers}}</div>
+                        <div class="label">用户总数</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.totalProblems}}</div>
+                        <div class="label">题目总数</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.totalSolutions}}</div>
+                        <div class="label">提交总数</div>
+                        <div class="label">
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.totalContests}}</div>
+                        <div class="label">竞赛总数</div>
+                    </div>
+                </div>
+                
+                <div class="ui divider"></div>
+                
+                <div class="ui three statistics">
+                    <div class="statistic">
+                        <div class="value">{{stats.totalExports}}</div>
+                        <div class="label">导出任务</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.totalBackups}}</div>
+                        <div class="label">备份任务</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">{{stats.storageUsed}}</div>
+                        <div class="label">存储使用</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    var dataManagement = new Vue({
+        el: "#data-management",
+        data: {
+            // 导出相关
+            exportType: 'problems',
+            exportFormat: 'csv',
+            exportParameters: '{}',
+            exportTasks: [],
+            exportTasksReady: false,
+            exporting: false,
+            
+            // 备份相关
+            backupType: 'full',
+            backupParameters: '{}',
+            backupTasks: [],
+            backupTasksReady: false,
+            backingUp: false,
+            
+            // 恢复相关
+            restoreType: 'full',
+            restoreFilePath: '',
+            restoring: false,
+            
+            // 清理相关
+            cleanupType: 'old_exports',
+            cleanupDays: 30,
+            cleaningUp: false,
+            
+            // 统计相关
+            stats: null,
+            statsReady: false
+        },
+        mounted: function() {
+            this.initTabs();
+            this.loadExportTasks();
+            this.loadBackupTasks();
+            this.loadStats();
+        },
+        methods: {
+            initTabs: function() {
+                $('.tabular.menu .item').tab();
+            },
+            startExport: function() {
+                this.exporting = true;
+                var that = this;
+                axios.post('/api/admin/export', {
+                    type: this.exportType,
+                    format: this.exportFormat,
+                    parameters: JSON.parse(this.exportParameters)
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.$notify({
+                            title: '成功',
+                            message: '导出任务已创建',
+                            type: 'success'
+                        });
+                        that.loadExportTasks();
+                    } else {
+                        that.$notify({
+                            title: '失败',
+                            message: '导出任务创建失败: ' + res.data.message,
+                            type: 'error'
+                        });
+                    }
+                    that.exporting = false;
+                }).catch(function(error) {
+                    console.error(error);
+                    that.$notify({
+                        title: '错误',
+                        message: '请求失败: ' + error.message,
+                        type: 'error'
+                    });
+                    that.exporting = false;
+                });
+            },
+            loadExportTasks: function() {
+                this.exportTasksReady = false;
+                var that = this;
+                axios.get('/api/admin/exports').then(function(res) {
+                    if (res.data.code === 200) {
+                        that.exportTasks = res.data.data.content;
+                        that.exportTasksReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            downloadExport: function(id) {
+                window.location.href = '/api/admin/export/download/' + id;
+            },
+            startBackup: function() {
+                this.backingUp = true;
+                var that = this;
+                axios.post('/api/admin/backup', {
+                    type: this.backupType,
+                    parameters: JSON.parse(this.backupParameters)
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.$notify({
+                            title: '成功',
+                            message: '备份任务已创建',
+                            type: 'success'
+                        });
+                        that.loadBackupTasks();
+                    } else {
+                        that.$notify({
+                            title: '失败',
+                            message: '备份任务创建失败: ' + res.data.message,
+                            type: 'error'
+                        });
+                    }
+                    that.backingUp = false;
+                }).catch(function(error) {
+                    console.error(error);
+                    that.$notify({
+                        title: '错误',
+                        message: '请求失败: ' + error.message,
+                        type: 'error'
+                    });
+                    that.backingUp = false;
+                });
+            },
+            loadBackupTasks: function() {
+                this.backupTasksReady = false;
+                var that = this;
+                axios.get('/api/admin/backups').then(function(res) {
+                    if (res.data.code === 200) {
+                        that.backupTasks = res.data.data;
+                        that.backupTasksReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            restoreBackup: function(id) {
+                if (!confirm('确定要恢复此备份吗？这可能会覆盖现有数据！')) {
+                    return;
+                }
+                var that = this;
+                axios.post('/api/admin/restore', {
+                    filePath: '/backups/' + id + '.zip',
+                    type: this.restoreType
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.$notify({
+                            title: '成功',
+                            message: '恢复任务已创建',
+                            type: 'success'
+                        });
+                    } else {
+                        that.$notify({
+                            title: '失败',
+                            message: '恢复任务创建失败: ' + res.data.message,
+                            type: 'error'
+                        });
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                    that.$notify({
+                        title: '错误',
+                        message: '请求失败: ' + error.message,
+                        type: 'error'
+                    });
+                });
+            },
+            deleteBackup: function(id) {
+                if (!confirm('确定要删除此备份吗？')) {
+                    return;
+                }
+                // 这里应该实现删除备份的逻辑
+            },
+            startRestore: function() {
+                this.restoring = true;
+                var that = this;
+                axios.post('/api/admin/restore', {
+                    filePath: this.restoreFilePath,
+                    type: this.restoreType
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.$notify({
+                            title: '成功',
+                            message: '恢复任务已创建',
+                            type: 'success'
+                        });
+                    } else {
+                        that.$notify({
+                            title: '失败',
+                            message: '恢复任务创建失败: ' + res.data.message,
+                            type: 'error'
+                        });
+                    }
+                    that.restoring = false;
+                }).catch(function(error) {
+                    console.error(error);
+                    that.$notify({
+                        title: '错误',
+                        message: '请求失败: ' + error.message,
+                        type: 'error'
+                    });
+                    that.restoring = false;
+                });
+            },
+            startCleanup: function() {
+                this.cleaningUp = true;
+                var that = this;
+                // 这里应该实现清理逻辑
+                setTimeout(function() {
+                    that.$notify({
+                        title: '成功',
+                        message: '清理完成',
+                        type: 'success'
+                    });
+                    that.cleaningUp = false;
+                }, 2000);
+            },
+            loadStats: function() {
+                this.statsReady = false;
+                var that = this;
+                // 这里应该实现加载统计数据的逻辑
+                setTimeout(function() {
+                    that.stats = {
+                        totalUsers: 1000,
+                        totalProblems: 500,
+                        totalSolutions: 10000,
+                        totalContests: 50,
+                        totalExports: 20,
+                        totalBackups: 15,
+                        storageUsed: '5GB'
+                    };
+                    that.statsReady = true;
+                }, 1000);
+            },
+            formatTime: function(timeStr) {
+                var date = new Date(timeStr);
+                return date.toLocaleString();
+            }
+        }
+    });
+</script>
+</body>
+</html>

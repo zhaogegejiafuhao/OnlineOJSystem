@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:insert="~{fragment/header :: header}"></th:block>
+    <meta charset="UTF-8">
+    <title>系统监控仪表盘</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="/css/monitor.css">
+</head>
+<body>
+<main class="ui container" id="monitor-dashboard">
+    <div class="ui segment raised">
+        <h2 class="ui header">系统监控仪表盘</h2>
+        <div class="ui divider"></div>
+        
+        <!-- 系统概览卡片 -->
+        <div class="ui four statistics">
+            <div class="statistic">
+                <div class="value" id="cpu-usage">0%</div>
+                <div class="label">CPU使用率</div>
+            </div>
+            <div class="statistic">
+                <div class="value" id="memory-usage">0%</div>
+                <div class="label">内存使用率</div>
+            </div>
+            <div class="statistic">
+                <div class="value" id="disk-usage">0%</div>
+                <div class="label">磁盘使用率</div>
+            </div>
+            <div class="statistic">
+                <div class="value" id="pending-alarms">0</div>
+                <div class="label">待处理报警</div>
+            </div>
+        </div>
+        
+        <div class="ui divider"></div>
+        
+        <!-- 系统指标图表 -->
+        <div class="ui grid">
+            <div class="eight wide column">
+                <div class="ui segment">
+                    <h3 class="ui header">CPU使用率趋势</h3>
+                    <div id="cpu-chart" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+            <div class="eight wide column">
+                <div class="ui segment">
+                    <h3 class="ui header">内存使用率趋势</h3>
+                    <div id="memory-chart" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="ui grid">
+            <div class="eight wide column">
+                <div class="ui segment">
+                    <h3 class="ui header">磁盘使用率趋势</h3>
+                    <div id="disk-chart" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+            <div class="eight wide column">
+                <div class="ui segment">
+                    <h3 class="ui header">系统错误统计</h3>
+                    <div id="error-chart" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 最近报警 -->
+        <div class="ui segment">
+            <h3 class="ui header">最近报警</h3>
+            <div class="ui loading segment" v-if="!alarmsReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="alarms.content.length === 0">
+                    <div class="header">暂无报警</div>
+                    <p>系统运行正常</p>
+                </div>
+                <table class="ui celled table" v-else>
+                    <thead>
+                        <tr>
+                            <th>报警类型</th>
+                            <th>报警信息</th>
+                            <th>级别</th>
+                            <th>时间</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="alarm in alarms.content" :key="alarm.id">
+                            <td>{{alarm.alarmType}}</td>
+                            <td>{{alarm.alarmMessage}}</td>
+                            <td>
+                                <span class="ui label" :class="{red: alarm.priority === 'HIGH', yellow: alarm.priority === 'MEDIUM', green: alarm.priority === 'LOW'}">
+                                    {{alarm.priority}}
+                                </span>
+                            </td>
+                            <td>{{formatTime(alarm.alarmTime)}}</td>
+                            <td>
+                                <span class="ui label" :class="{red: alarm.status === 'PENDING', green: alarm.status === 'HANDLED'}">
+                                    {{alarm.status}}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="ui blue button" v-if="alarm.status === 'PENDING'" @click="handleAlarm(alarm.id)">处理</button>
+                                <button class="ui green button" v-else>已处理</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    var dashboard = new Vue({
+        el: "#monitor-dashboard",
+        data: {
+            metrics: null,
+            alarms: {content: []},
+            alarmsReady: false,
+            cpuChart: null,
+            memoryChart: null,
+            diskChart: null,
+            errorChart: null
+        },
+        mounted: function() {
+            this.initCharts();
+            this.loadSystemMetrics();
+            this.loadRecentAlarms();
+            this.startAutoRefresh();
+        },
+        methods: {
+            initCharts: function() {
+                this.cpuChart = echarts.init(document.getElementById('cpu-chart'));
+                this.memoryChart = echarts.init(document.getElementById('memory-chart'));
+                this.diskChart = echarts.init(document.getElementById('disk-chart'));
+                this.errorChart = echarts.init(document.getElementById('error-chart'));
+            },
+            loadSystemMetrics: function() {
+                var that = this;
+                axios.get('/api/monitor/system/metrics').then(function(res) {
+                    if (res.data.code === 200) {
+                        that.metrics = res.data.data;
+                        that.updateMetricsDisplay();
+                        that.updateCharts();
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            loadRecentAlarms: function() {
+                this.alarmsReady = false;
+                var that = this;
+                axios.get('/api/monitor/alarms/pending', {
+                    params: {
+                        page: 0,
+                        size: 10
+                    }
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.alarms = res.data.data;
+                        that.alarmsReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            startAutoRefresh: function() {
+                var that = this;
+                setInterval(function() {
+                    that.loadSystemMetrics();
+                    that.loadRecentAlarms();
+                }, 30000); // 每30秒刷新一次
+            },
+            updateMetricsDisplay: function() {
+                if (this.metrics) {
+                    document.getElementById('cpu-usage').textContent = this.metrics.avgCpuUsage.toFixed(1) + '%';
+                    document.getElementById('memory-usage').textContent = this.metrics.avgMemoryUsage.toFixed(1) + '%';
+                    document.getElementById('disk-usage').textContent = this.metrics.avgDiskUsage.toFixed(1) + '%';
+                    document.getElementById('pending-alarms').textContent = this.metrics.pendingAlarms;
+                }
+            },
+            updateCharts: function() {
+                // 这里应该使用实际的历史数据来更新图表
+                // 暂时使用模拟数据
+                this.updateCpuChart();
+                this.updateMemoryChart();
+                this.updateDiskChart();
+                this.updateErrorChart();
+            },
+            updateCpuChart: function() {
+                var option = {
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: ['1小时前', '45分钟前', '30分钟前', '15分钟前', '现在']
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: 'CPU使用率(%)'
+                    },
+                    series: [{
+                        data: [25, 30, 28, 35, this.metrics ? this.metrics.avgCpuUsage : 30],
+                        type: 'line',
+                        smooth: true,
+                        lineStyle: {
+                            color: '#ff4d4f'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                {offset: 0, color: 'rgba(255,77,79,0.5)'},
+                                {offset: 1, color: 'rgba(255,77,79,0.1)'}
+                            ])
+                        }
+                    }]
+                };
+                this.cpuChart.setOption(option);
+            },
+            updateMemoryChart: function() {
+                var option = {
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: ['1小时前', '45分钟前', '30分钟前', '15分钟前', '现在']
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '内存使用率(%)'
+                    },
+                    series: [{
+                        data: [45, 50, 48, 55, this.metrics ? this.metrics.avgMemoryUsage : 50],
+                        type: 'line',
+                        smooth: true,
+                        lineStyle: {
+                            color: '#1890ff'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                {offset: 0, color: 'rgba(24,144,255,0.5)'},
+                                {offset: 1, color: 'rgba(24,144,255,0.1)'}
+                            ])
+                        }
+                    }]
+                };
+                this.memoryChart.setOption(option);
+            },
+            updateDiskChart: function() {
+                var option = {
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: ['1小时前', '45分钟前', '30分钟前', '15分钟前', '现在']
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '磁盘使用率(%)'
+                    },
+                    series: [{
+                        data: [60, 62, 61, 63, this.metrics ? this.metrics.avgDiskUsage : 62],
+                        type: 'line',
+                        smooth: true,
+                        lineStyle: {
+                            color: '#52c41a'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                {offset: 0, color: 'rgba(82,196,26,0.5)'},
+                                {offset: 1, color: 'rgba(82,196,26,0.1)'}
+                            ])
+                        }
+                    }]
+                };
+                this.diskChart.setOption(option);
+            },
+            updateErrorChart: function() {
+                var option = {
+                    tooltip: {
+                        trigger: 'item'
+                    },
+                    legend: {
+                        top: '5%',
+                        left: 'center'
+                    },
+                    series: [{
+                        name: '错误类型',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: false,
+                            position: 'center'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: '18',
+                                fontWeight: 'bold'
+                            }
+                        },
+                        labelLine: {
+                            show: false
+                        },
+                        data: [
+                            {value: this.metrics ? this.metrics.serverErrors : 0, name: '服务器错误'},
+                            {value: this.metrics ? this.metrics.clientErrors : 0, name: '客户端错误'},
+                            {value: 100 - (this.metrics ? (this.metrics.serverErrors + this.metrics.clientErrors) : 0), name: '正常请求'}
+                        ]
+                    }]
+                };
+                this.errorChart.setOption(option);
+            },
+            handleAlarm: function(id) {
+                var solution = prompt('请输入处理方案:');
+                if (solution) {
+                    var that = this;
+                    axios.post('/api/monitor/alarms/handle/'+id, {
+                        solution: solution,
+                        handler: 'admin'
+                    }).then(function(res) {
+                        if (res.data.code === 200) {
+                            that.loadRecentAlarms();
+                        } else {
+                            console.error(res.data.message);
+                        }
+                    }).catch(function(error) {
+                        console.error(error);
+                    });
+                }
+            },
+            formatTime: function(timeStr) {
+                var date = new Date(timeStr);
+                return date.toLocaleString();
+            }
+        }
+    });
+    
+    // 响应式调整
+    window.addEventListener('resize', function() {
+        if (dashboard.cpuChart) dashboard.cpuChart.resize();
+        if (dashboard.memoryChart) dashboard.memoryChart.resize();
+        if (dashboard.diskChart) dashboard.diskChart.resize();
+        if (dashboard.errorChart) dashboard.errorChart.resize();
+    });
+</script>
+</body>
+</html>

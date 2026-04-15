@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:insert="~{fragment/header :: header}"></th:block>
+    <meta charset="UTF-8">
+    <title>错题本管理</title>
+    <link rel="stylesheet" href="/css/error.css">
+</head>
+<body>
+<main class="ui container" id="error-book">
+    <div class="ui segment raised">
+        <div class="ui top attached tabular menu">
+            <a class="item active" data-tab="all">全部错题</a>
+            <a class="item" data-tab="unresolved">未解决</a>
+            <a class="item" data-tab="marked">已标记</a>
+            <a class="item" data-tab="review">复习计划</a>
+            <a class="item" data-tab="categories">分类管理</a>
+        </div>
+        
+        <!-- 全部错题 -->
+        <div class="ui bottom attached tab segment active" data-tab="all">
+            <div class="ui action input">
+                <input type="text" placeholder="搜索题目..." v-model="searchKeyword">
+                <button class="ui button" @click="searchErrorRecords">搜索</button>
+            </div>
+            <div class="ui divider"></div>
+            <div class="ui loading segment" v-if="!ready">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="errorRecords.content.length === 0">
+                    <div class="header">暂无错题</div>
+                    <p>完成题目后，错误的提交会自动添加到错题本</p>
+                </div>
+                <table class="ui celled table" v-else>
+                    <thead>
+                        <tr>
+                            <th>题目</th>
+                            <th>错误类型</th>
+                            <th>添加时间</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="record in errorRecords.content" :key="record.id">
+                            <td>
+                                <a :href="'/problems/'+record.problem.id" target="_blank" v-html="record.problem.id + '. ' + record.problem.title"></a>
+                            </td>
+                            <td>{{record.errorType}}</td>
+                            <td>{{formatTime(record.createTime)}}</td>
+                            <td>
+                                <span class="ui label" :class="{green: record.isResolved, red: !record.isResolved}">
+                                    {{record.isResolved ? '已解决' : '未解决'}}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="ui mini buttons">
+                                    <button class="ui blue button" @click="viewProblem(record.problem.id)">查看</button>
+                                    <button class="ui green button" @click="toggleResolve(record.id, !record.isResolved)">
+                                        {{record.isResolved ? '标记未解决' : '标记已解决'}}
+                                    </button>
+                                    <button class="ui orange button" @click="toggleMark(record.id, !record.isMarked)">
+                                        {{record.isMarked ? '取消标记' : '标记'}}
+                                    </button>
+                                    <button class="ui red button" @click="deleteRecord(record.id)">删除</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="ui pagination menu" v-if="errorRecords.totalPages > 1">
+                    <a class="item" @click="changePage(0)" :class="{disabled: errorRecords.number === 0}">首页</a>
+                    <a class="item" @click="changePage(errorRecords.number - 1)" :class="{disabled: errorRecords.number === 0}">上一页</a>
+                    <a class="item" @click="changePage(errorRecords.number + 1)" :class="{disabled: errorRecords.number === errorRecords.totalPages - 1}">下一页</a>
+                    <a class="item" @click="changePage(errorRecords.totalPages - 1)" :class="{disabled: errorRecords.number === errorRecords.totalPages - 1}">末页</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 未解决错题 -->
+        <div class="ui bottom attached tab segment" data-tab="unresolved">
+            <div class="ui loading segment" v-if="!unresolvedReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="unresolvedRecords.content.length === 0">
+                    <div class="header">暂无未解决错题</div>
+                    <p>所有错题都已解决，继续加油！</p>
+                </div>
+                <table class="ui celled table" v-else>
+                    <thead>
+                        <tr>
+                            <th>题目</th>
+                            <th>错误类型</th>
+                            <th>添加时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="record in unresolvedRecords.content" :key="record.id">
+                            <td>
+                                <a :href="'/problems/'+record.problem.id" target="_blank" v-html="record.problem.title"></a>
+                            </td>
+                            <td>{{record.errorType}}</td>
+                            <td>{{formatTime(record.createTime)}}</td>
+                            <td>
+                                <div class="ui mini buttons">
+                                    <button class="ui blue button" @click="viewProblem(record.problem.id)">查看</button>
+                                    <button class="ui green button" @click="toggleResolve(record.id, true)">标记已解决</button>
+                                    <button class="ui orange button" @click="toggleMark(record.id, !record.isMarked)">
+                                        {{record.isMarked ? '取消标记' : '标记'}}
+                                    </button>
+                                    <button class="ui red button" @click="deleteRecord(record.id)">删除</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="ui pagination menu" v-if="unresolvedRecords.totalPages > 1">
+                    <a class="item" @click="changeUnresolvedPage(0)" :class="{disabled: unresolvedRecords.number === 0}">首页</a>
+                    <a class="item" @click="changeUnresolvedPage(unresolvedRecords.number - 1)" :class="{disabled: unresolvedRecords.number === 0}">上一页</a>
+                    <a class="item" @click="changeUnresolvedPage(unresolvedRecords.number + 1)" :class="{disabled: unresolvedRecords.number === unresolvedRecords.totalPages - 1}">下一页</a>
+                    <a class="item" @click="changeUnresolvedPage(unresolvedRecords.totalPages - 1)" :class="{disabled: unresolvedRecords.number === unresolvedRecords.totalPages - 1}">末页</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 已标记错题 -->
+        <div class="ui bottom attached tab segment" data-tab="marked">
+            <div class="ui loading segment" v-if="!markedReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="markedRecords.content.length === 0">
+                    <div class="header">暂无标记错题</div>
+                    <p>点击错题操作中的"标记"按钮，将重要的错题标记起来</p>
+                </div>
+                <table class="ui celled table" v-else>
+                    <thead>
+                        <tr>
+                            <th>题目</th>
+                            <th>错误类型</th>
+                            <th>添加时间</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="record in markedRecords.content" :key="record.id">
+                            <td>
+                                <a :href="'/problems/'+record.problem.id" target="_blank" v-html="record.problem.title"></a>
+                            </td>
+                            <td>{{record.errorType}}</td>
+                            <td>{{formatTime(record.createTime)}}</td>
+                            <td>
+                                <span class="ui label" :class="{green: record.isResolved, red: !record.isResolved}">
+                                    {{record.isResolved ? '已解决' : '未解决'}}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="ui mini buttons">
+                                    <button class="ui blue button" @click="viewProblem(record.problem.id)">查看</button>
+                                    <button class="ui green button" @click="toggleResolve(record.id, !record.isResolved)">
+                                        {{record.isResolved ? '标记未解决' : '标记已解决'}}
+                                    </button>
+                                    <button class="ui orange button" @click="toggleMark(record.id, false)">取消标记</button>
+                                    <button class="ui red button" @click="deleteRecord(record.id)">删除</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="ui pagination menu" v-if="markedRecords.totalPages > 1">
+                    <a class="item" @click="changeMarkedPage(0)" :class="{disabled: markedRecords.number === 0}">首页</a>
+                    <a class="item" @click="changeMarkedPage(markedRecords.number - 1)" :class="{disabled: markedRecords.number === 0}">上一页</a>
+                    <a class="item" @click="changeMarkedPage(markedRecords.number + 1)" :class="{disabled: markedRecords.number === markedRecords.totalPages - 1}">下一页</a>
+                    <a class="item" @click="changeMarkedPage(markedRecords.totalPages - 1)" :class="{disabled: markedRecords.number === markedRecords.totalPages - 1}">末页</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 复习计划 -->
+        <div class="ui bottom attached tab segment" data-tab="review">
+            <div class="ui loading segment" v-if="!reviewReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="reviewRecords.content.length === 0">
+                    <div class="header">暂无复习题目</div>
+                    <p>完成题目后，系统会根据错误频率生成复习计划</p>
+                </div>
+                <table class="ui celled table" v-else>
+                    <thead>
+                        <tr>
+                            <th>题目</th>
+                            <th>错误类型</th>
+                            <th>复习次数</th>
+                            <th>上次复习</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="record in reviewRecords.content" :key="record.id">
+                            <td>
+                                <a :href="'/problems/'+record.problem.id" target="_blank" v-html="record.problem.title"></a>
+                            </td>
+                            <td>{{record.errorType}}</td>
+                            <td>{{record.reviewCount}}</td>
+                            <td>{{formatTime(record.lastReviewTime)}}</td>
+                            <td>
+                                <div class="ui mini buttons">
+                                    <button class="ui blue button" @click="viewProblem(record.problem.id)">查看</button>
+                                    <button class="ui purple button" @click="updateReview(record.id)">标记复习</button>
+                                    <button class="ui green button" @click="toggleResolve(record.id, !record.isResolved)">
+                                        {{record.isResolved ? '标记未解决' : '标记已解决'}}
+                                    </button>
+                                    <button class="ui red button" @click="deleteRecord(record.id)">删除</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="ui pagination menu" v-if="reviewRecords.totalPages > 1">
+                    <a class="item" @click="changeReviewPage(0)" :class="{disabled: reviewRecords.number === 0}">首页</a>
+                    <a class="item" @click="changeReviewPage(reviewRecords.number - 1)" :class="{disabled: reviewRecords.number === 0}">上一页</a>
+                    <a class="item" @click="changeReviewPage(reviewRecords.number + 1)" :class="{disabled: reviewRecords.number === reviewRecords.totalPages - 1}">下一页</a>
+                    <a class="item" @click="changeReviewPage(reviewRecords.totalPages - 1)" :class="{disabled: reviewRecords.number === reviewRecords.totalPages - 1}">末页</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 分类管理 -->
+        <div class="ui bottom attached tab segment" data-tab="categories">
+            <div class="ui action input">
+                <input type="text" placeholder="分类名称" v-model="newCategoryName">
+                <input type="text" placeholder="分类描述" v-model="newCategoryDescription">
+                <button class="ui button" @click="createCategory">添加分类</button>
+            </div>
+            <div class="ui divider"></div>
+            <div class="ui loading segment" v-if="!categoriesReady">
+                <p>加载中...</p>
+            </div>
+            <div v-else>
+                <div class="ui message" v-if="categories.length === 0">
+                    <div class="header">暂无分类</div>
+                    <p>创建分类后，可以将错题归类管理</p>
+                </div>
+                <div class="ui link cards" v-else>
+                    <div class="card" v-for="category in categories" :key="category.id">
+                        <div class="content">
+                            <div class="header">{{category.name}}</div>
+                            <div class="description" v-if="category.description">
+                                {{category.description}}
+                            </div>
+                        </div>
+                        <div class="extra content">
+                            <div class="ui buttons">
+                                <button class="ui blue button" @click="editCategory(category)">编辑</button>
+                                <button class="ui red button" @click="deleteCategory(category.id)">删除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    var errorBook = new Vue({
+        el: "#error-book",
+        data: {
+            errorRecords: {content: []},
+            unresolvedRecords: {content: []},
+            markedRecords: {content: []},
+            reviewRecords: {content: []},
+            categories: [],
+            ready: false,
+            unresolvedReady: false,
+            markedReady: false,
+            reviewReady: false,
+            categoriesReady: false,
+            searchKeyword: '',
+            newCategoryName: '',
+            newCategoryDescription: ''
+        },
+        mounted: function() {
+            this.initTabs();
+            this.loadErrorRecords();
+            this.loadUnresolvedRecords();
+            this.loadMarkedRecords();
+            this.loadReviewRecords();
+            this.loadCategories();
+        },
+        methods: {
+            initTabs: function() {
+                $('.tabular.menu .item').tab();
+            },
+            loadErrorRecords: function(page = 0) {
+                this.ready = false;
+                var that = this;
+                axios.get('/api/error/records', {
+                    params: {
+                        page: page,
+                        size: 20
+                    }
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.errorRecords = res.data.data;
+                        that.ready = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            loadUnresolvedRecords: function(page = 0) {
+                this.unresolvedReady = false;
+                var that = this;
+                axios.get('/api/error/records/unresolved', {
+                    params: {
+                        page: page,
+                        size: 20
+                    }
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.unresolvedRecords = res.data.data;
+                        that.unresolvedReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            loadMarkedRecords: function(page = 0) {
+                this.markedReady = false;
+                var that = this;
+                axios.get('/api/error/records/marked', {
+                    params: {
+                        page: page,
+                        size: 20
+                    }
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.markedRecords = res.data.data;
+                        that.markedReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            loadReviewRecords: function(page = 0) {
+                this.reviewReady = false;
+                var that = this;
+                axios.get('/api/error/records/review', {
+                    params: {
+                        page: page,
+                        size: 20
+                    }
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.reviewRecords = res.data.data;
+                        that.reviewReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            loadCategories: function() {
+                this.categoriesReady = false;
+                var that = this;
+                axios.get('/api/error/categories').then(function(res) {
+                    if (res.data.code === 200) {
+                        that.categories = res.data.data;
+                        that.categoriesReady = true;
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            changePage: function(page) {
+                this.loadErrorRecords(page);
+            },
+            changeUnresolvedPage: function(page) {
+                this.loadUnresolvedRecords(page);
+            },
+            changeMarkedPage: function(page) {
+                this.loadMarkedRecords(page);
+            },
+            changeReviewPage: function(page) {
+                this.loadReviewRecords(page);
+            },
+            searchErrorRecords: function() {
+                // 实现搜索功能
+                console.log('Search:', this.searchKeyword);
+            },
+            viewProblem: function(pid) {
+                window.open('/problems/'+pid, '_blank');
+            },
+            toggleResolve: function(id, resolved) {
+                var that = this;
+                axios.post('/api/error/records/resolve/'+id, {
+                    resolved: resolved
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.loadErrorRecords();
+                        that.loadUnresolvedRecords();
+                        that.loadMarkedRecords();
+                        that.loadReviewRecords();
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            toggleMark: function(id, marked) {
+                var that = this;
+                axios.post('/api/error/records/mark/'+id, {
+                    marked: marked
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.loadErrorRecords();
+                        that.loadUnresolvedRecords();
+                        that.loadMarkedRecords();
+                        that.loadReviewRecords();
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            deleteRecord: function(id) {
+                if (confirm('确定要删除这条错题记录吗？')) {
+                    var that = this;
+                    axios.delete('/api/error/records/'+id).then(function(res) {
+                        if (res.data.code === 200) {
+                            that.loadErrorRecords();
+                            that.loadUnresolvedRecords();
+                            that.loadMarkedRecords();
+                            that.loadReviewRecords();
+                        } else {
+                            console.error(res.data.message);
+                        }
+                    }).catch(function(error) {
+                        console.error(error);
+                    });
+                }
+            },
+            updateReview: function(id) {
+                var that = this;
+                axios.post('/api/error/records/review/'+id).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.loadReviewRecords();
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            createCategory: function() {
+                if (!this.newCategoryName) {
+                    alert('请输入分类名称');
+                    return;
+                }
+                var that = this;
+                axios.post('/api/error/categories', {
+                    name: this.newCategoryName,
+                    description: this.newCategoryDescription
+                }).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.loadCategories();
+                        that.newCategoryName = '';
+                        that.newCategoryDescription = '';
+                    } else {
+                        console.error(res.data.message);
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                });
+            },
+            editCategory: function(category) {
+                var newName = prompt('请输入新的分类名称:', category.name);
+                if (newName) {
+                    var newDescription = prompt('请输入分类描述:', category.description || '');
+                    var that = this;
+                    axios.put('/api/error/categories/'+category.id, {
+                        name: newName,
+                        description: newDescription
+                    }).then(function(res) {
+                        if (res.data.code === 200) {
+                            that.loadCategories();
+                        } else {
+                            console.error(res.data.message);
+                        }
+                    }).catch(function(error) {
+                        console.error(error);
+                    });
+                }
+            },
+            deleteCategory: function(id) {
+                if (confirm('确定要删除这个分类吗？')) {
+                    var that = this;
+                    axios.delete('/api/error/categories/'+id).then(function(res) {
+                        if (res.data.code === 200) {
+                            that.loadCategories();
+                        } else {
+                            console.error(res.data.message);
+                        }
+                    }).catch(function(error) {
+                        console.error(error);
+                    });
+                }
+            },
+            formatTime: function(timeStr) {
+                var date = new Date(timeStr);
+                return date.toLocaleString();
+            }
+        }
+    });
+</script>
+</body>
+</html>

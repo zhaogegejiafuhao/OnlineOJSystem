@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:insert="~{fragment/header :: header}"></th:block>
+    <meta charset="UTF-8">
+    <title>Administrator</title>
+</head>
+<body>
+<main class="ui fluid container">
+    <a class="ui button" href="/admin/problem">Problems</a>
+    <a class="ui button" href="/admin/contest">Contests</a>
+    <a href="/admin/user" class="ui button">Users</a>
+    <a class="ui button" href="/ai/assistant">AI Assistant</a>
+    <a class="ui button" href="/admin/settings">Config</a>
+</main>
+</body>
+</html>

@@ -1,0 +1,269 @@
+spring:
+  datasource:
+    username: root
+    password: 1234
+    url: jdbc:mysql://localhost:13306/oj?serverTimezone=GMT%2B8&useUnicode=yes&characterEncoding=UTF-8
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      max-lifetime: 240000
+      maximum-pool-size: 10
+      connection-test-query: SELECT 1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+  cache:
+    type: redis
+    redis:
+      time-to-live: 120
+  redis:
+    host: localhost
+    port: 16379
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+  thymeleaf:
+    encoding: utf-8
+    cache: true
+    mode: HTML
+    check-template: false
+  config:
+    additional-location: /onlinejudge/config
+  servlet:
+    multipart:
+      max-file-size: 16MB
+      max-request-size: 16MB
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  resources:
+    cache:
+      cachecontrol:
+        cache-public: true
+      period: 2592000
+    chain:
+      strategy:
+        content:
+          enabled: true
+      cache: true
+      enabled: true
+      compressed: false
+
+server:
+  tomcat:
+    max-threads: 2000
+    max-connections: 2000
+    uri-encoding: UTF-8
+  servlet:
+    session:
+      timeout: 350m
+  max-http-header-size: 1048576
+  error:
+    whitelabel:
+      enabled: false
+
+logging:
+  file:
+    max-size: 50MB
+    path: ./log
+    max-history: 14
+  level:
+    com.onlinejudge: DEBUG
+    com.onlinejudge.service.JudgeService: DEBUG
+    com.onlinejudge.controller.JudgeController: DEBUG
+    org.springframework: ERROR
+    org.hibernate: ERROR
+    com.zaxxer.hikari: ERROR
+    org.apache.catalina: ERROR
+
+onlinejudge:
+  callback-url: http://host.docker.internal:8080/judge/callback
+  judgerhost:
+    - http://localhost:12345/judge
+  #    - http://localhost:8001/judge
+  #    - http://localhost:8002/judge
+  #    - http://localhost:8003/judge
+  #    - http://localhost:8004/judge
+  #    - http://localhost:6000/judge
+  c:
+    src: main.c
+    seccomp_rule: c_cpp
+    run_command: ./main
+    compile_command: /usr/bin/gcc -DONLINE_JUDGE -fno-tree-ch -O2 -Wall -std=c99 main.c -lm -o main
+    memory_limit_check_only: 0
+  cpp:
+    src: main.cpp
+    seccomp_rule: c_cpp
+    run_command: ./main
+    compile_command: /usr/bin/g++ -DONLINE_JUDGE -fno-tree-ch -O2 -Wall -std=c++14 main.cpp -lm -o main
+    memory_limit_check_only: 0
+  go:
+    src: main.go
+    compile_command: /usr/bin/gccgo -g -Wall main.go -o main
+    run_command: ./main
+    memory_limit_check_only: 0
+  java:
+    src: Main.java
+    run_command: /usr/bin/java -Djava.security.manager -Dfile.encoding=UTF-8 -Djava.awt.headless=true Main
+    compile_command: /usr/bin/javac Main.java -encoding UTF8
+    memory_limit_check_only: 1
+  python2:
+    src: main.py
+    run_command: /usr/bin/python main.pyc
+    compile_command: /usr/bin/python -m py_compile main.py
+    memory_limit_check_only: 0
+    seccomp_rule: general
+  python3:
+    src: main.py
+    run_command: /usr/bin/python3 main.py
+    compile_command: /usr/bin/python3 -m py_compile main.py
+    memory_limit_check_only: 0
+    seccomp_rule: general
+  least-score-to-see-others-code: 0
+  least-score-to-post-blog: 0
+  notice: |
+    ## 运行参数
+    - C: `gcc -DONLINE_JUDGE -fno-tree-ch -O2 -Wall -std=c99 main.c -lm -o main && ./main`
+    - CPP: `g++ -DONLINE_JUDGE -fno-tree-ch -O2 -Wall -std=c++14 main.cpp -lm -o main && ./main `
+    - Java(jdk8): `javac Main.java -encoding UTF8 && java -Dfile.encoding=UTF-8 -Djava.awt.headless=true Main`
+    - Python 2.7/3.6: `python main.py` `python3 main.py`
+    - Golang: `go build main.go && ./main`
+
+    ***题目显示的时间空间限制为C/C++语言。其他语言二倍时间空间限制。***
+
+    ## 代码提交格式说明
+    请提交**完整的可执行程序**，包含主程序入口。程序需要从标准输入读取数据，并将结果输出到标准输出。
+
+    ### 各语言的标准输入输出处理方式：
+
+    **C/C++:**
+    ```c
+    #include <stdio.h>
+    int main() {
+        int n;
+        scanf("%d", &n);  // 从标准输入读取
+        printf("%d\n", n);  // 输出到标准输出
+        return 0;
+    }
+    ```
+
+    **Java:**
+    ```java
+    import java.util.Scanner;
+    public class Main {
+        public static void main(String[] args) {
+            Scanner scanner = new Scanner(System.in);
+            int n = scanner.nextInt();  // 从标准输入读取
+            System.out.println(n);  // 输出到标准输出
+            scanner.close();
+        }
+    }
+    ```
+
+    **Python:**
+    ```python
+    import sys
+    def solve():
+        data = sys.stdin.readline().strip()  // 从标准输入读取
+        # 处理数据
+        print(result)  // 输出到标准输出
+
+    if __name__ == "__main__":
+        solve()
+    ```
+
+    **Go:**
+    ```go
+    package main
+    import "fmt"
+    func main() {
+        var n int
+        fmt.Scan(&n)  // 从标准输入读取
+        fmt.Println(n)  // 输出到标准输出
+    }
+    ```
+
+    **重要提示：**
+    - 切换语言时会自动加载对应的代码模板，您可以在模板基础上修改
+    - 如果有多组测试用例，请使用循环读取直到文件结束（EOF）
+    - 输出格式必须与样例输出完全一致（包括空格、换行等）
+
+    ## Q&A
+    1. `main`的问题
+    错误的例子：
+    ```
+    void main()
+    {
+        printf("hello\n");
+    }
+    ```
+    函数`main()`的返回类型必须是`int`，在`main()`里一定要有一句
+    ```
+    return 0;
+    ```
+    `system("pause");`将导致程序超时
+    2. 汉字问题
+    程序中不要出现任何汉字，即使在注释中也不行。服务器上使用的文字编码未必和你的电脑上的相同，你认为无害的汉字会被编译器认为是各种奇怪的东西。
+
+    3. 输出格式问题
+    仔细阅读题目中对于输出格式的要求。因为在服务器上程序是严格地按照预设的输出来比对你的程序的输出。
+    常见的输出格式问题包括：
+     - 行末要求不带空格（或带空格）
+     - 输出要求分行（或不分行）
+     - 有空格没空格要看仔细
+     - 输出中的标点符号要看清楚，尤其是绝对不能用中文全角的标点符号，另外单引号“'”和一撇“`”要分清楚
+     - 当输出浮点数时，通常题目中会做适当处理，要求比较明确的输出格式，一定要严格遵守，因为浮点数会涉及到输出的精度问题
+     - 当输出浮点数时，如果可能输出`0`，而数据可能为负时，有可能出现输出`-0.0`的情况，需要自己写代码判断，保证不出现`-0.0`
+
+    4. 不能用的库函数
+    某些库函数因为存在安全隐患是不能用的，目前主要常见的是`itoa`和`gets`。
+
+    5. 过时的写法问题
+    某些旧书上的过时写法也会在服务器的gcc编译时引起错误，例如：
+    ```
+    int f()
+    int a;
+    {
+    }
+    ```
+    6. 有什么条件判断我的程序是在OJ上运行吗？
+    您可以使用ONLINE_JUDGE这个条件定义。下面是使用举例：
+    C/C++
+    ```
+    #ifdef ONLINE_JUDGE
+    //此间的语句只有在OJ上的才会被编译
+    #endif
+    ```
+
+    7. 在OJ上我能使用哪些输入输出？
+     只能使用标准输入输出，您的程序不允许操作文件，否则将被判为'Runtime Error'或者'Wrong Answer'。
+
+    8. 评判结果是什么意思？
+     - Pending : 您提交的代码已进入队列。
+     - Running : 您的程序正在OJ上运行。
+     - Accepted (AC) : 您的程序是正确的，恭喜！
+     - Wrong Answer (WA) : 输出结果错误，这个一般认为是算法有问题。
+     - Runtime Error (RE) : 运行时错误，这个一般是程序在运行期间执行了非法的操作造成的。
+     - Time Limit Exceeded (TLE) : 您的程序运行的时间已经超出了这个题目的时间限制。
+     - Memory Limit Exceeded (MLE) : 您的程序运行的内存已经超出了这个题目的内存限制。
+     - Compilation Error (CE) : 您的程序语法有问题，编译器无法编译。具体的出错信息可以点击链接察看。
+     - System Error (SE) : OJ内部出现错误。由于我们的OJ可能存在一些小问题，所以出现这个信息请原谅，同时请及时与管理员联系。
+
+ai:
+  api:
+    key: your_api_key_here
+    url: your_api_url_here
+  max:
+    tokens: 2000
+  temperature: 0.7
+  timeout: 30000
+  model:
+    default: gpt-4o-mini
+

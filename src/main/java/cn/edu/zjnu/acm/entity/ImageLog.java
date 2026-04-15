@@ -1,0 +1,41 @@
+package cn.edu.zjnu.acm.entity;
+
+import lombok.Data;
+
+import javax.persistence.*;
+import java.time.Instant;
+
+@Data
+@Entity
+public class ImageLog extends LogBase {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne(optional = false)
+    private User user;
+    // 地址/路径可能较长
+    @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
+    private String address;
+    // 文件名可能较长
+    @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
+    private String filename;
+    @Column(nullable = false, updatable = false)
+    private Long filesize;
+    // URL 可能超过 255
+    @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
+    private String url;
+    @Column(nullable = false, updatable = false, columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
+    private Instant logTime;
+
+    public ImageLog() {
+    }
+
+    public ImageLog(User user, String address, String filename, Long filesize, String url, Instant logTime) {
+        this.user = user;
+        this.address = address;
+        this.filename = filename;
+        this.filesize = filesize;
+        this.url = url;
+        this.logTime = logTime;
+    }
+}
