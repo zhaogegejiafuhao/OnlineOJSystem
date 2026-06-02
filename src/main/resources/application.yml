@@ -2,12 +2,15 @@ spring:
   datasource:
     username: root
     password: 1234
-    url: jdbc:mysql://localhost:13306/oj?serverTimezone=GMT%2B8&useUnicode=yes&characterEncoding=UTF-8
+    url: jdbc:mysql://localhost:13306/oj?serverTimezone=GMT%2B8&useUnicode=yes&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       max-lifetime: 240000
       maximum-pool-size: 10
       connection-test-query: SELECT 1
+      connection-timeout: 30000
+      validation-timeout: 5000
+      keepalive-time: 120000
   jpa:
     hibernate:
       ddl-auto: update

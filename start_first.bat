@@ -1,13 +1,24 @@
 ﻿@echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
-title OJ System - One-Click Launcher
-color 0A
+title OJ System - 首次部署初始化
+color 0C
 
 echo ============================================================
-echo    Online Judge System - 一键启动
+echo    Online Judge System - 首次部署初始化
+echo    此脚本会删除旧数据库并重新初始化，仅首次部署时使用！
+echo    日常启动请使用 start.bat
 echo ============================================================
 echo.
+
+choice /C YN /M "确认首次部署？这将删除所有旧数据"
+if !errorlevel! neq 2 (
+    if !errorlevel! equ 2 (
+        echo 已取消
+        pause
+        exit /b 0
+    )
+)
 
 set "BASE_DIR=%~dp0"
 set "BASE_DIR=%BASE_DIR:~0,-1%"
@@ -141,22 +152,13 @@ if %MYSQL_READY% equ 0 (
 )
 echo.
 
-echo [提示] 检查数据库...
-set DB_EXISTS=0
-docker exec oj-mysql mysql -u root -p1234 -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='oj'" -s -N 2>nul | findstr /r "[1-9]" >nul 2>&1
-if %errorlevel% equ 0 set DB_EXISTS=1
-
-if %DB_EXISTS% equ 0 (
-    echo [首次运行] 正在初始化数据库...
-    docker exec oj-mysql mysql -u root -p1234 -e "CREATE DATABASE oj DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>nul
-    type "%SQL_FILE%" | docker exec -i oj-mysql mysql -u root -p1234 --default-character-set=utf8mb4 oj
-    if !errorlevel! equ 0 (
-        echo [成功] 数据库初始化完成
-    ) else (
-        echo [警告] 数据库初始化失败，请手动执行 sql\init_data.sql
-    )
+echo [首次部署] 删除旧数据库并重新初始化...
+docker exec oj-mysql mysql -u root -p1234 -e "DROP DATABASE IF EXISTS oj; CREATE DATABASE oj DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>nul
+type "%SQL_FILE%" | docker exec -i oj-mysql mysql -u root -p1234 --default-character-set=utf8mb4 oj
+if !errorlevel! equ 0 (
+    echo [成功] 数据库初始化完成
 ) else (
-    echo [成功] 数据库已有数据，跳过初始化
+    echo [警告] 数据库初始化失败，请手动执行 sql\init_data.sql
 )
 echo.
 
@@ -181,6 +183,7 @@ echo    OJ 系统正在启动...
 echo    访问地址: http://localhost:%APP_PORT%
 echo    管理员账号: admin  密码: 123456
 echo    按 Ctrl+C 停止服务
+echo    以后请使用 start.bat 日常启动（不会删除数据）
 echo ============================================================
 echo.
 
