@@ -50,6 +50,9 @@ log/
 .DS_Store
 Thumbs.db
 
+# Deploy
+dist/
+
 # Temporary files
 *.tmp
 *.bak

@@ -89,7 +89,9 @@ public class MvcConfigurer implements WebMvcConfigurer {
                 .addPathPatterns("/api/admin/correctData")
                 .addPathPatterns("/api/admin/maintain")
                 .addPathPatterns("/api/admin/user/**")
-                .addPathPatterns("/api/admin/tag/**");
+                .addPathPatterns("/api/admin/tag/**")
+                .addPathPatterns("/ai/**")
+                .addPathPatterns("/api/ai/**");
         registry.addInterceptor(getContestInterceptor())
                 .addPathPatterns("/contest/*/**")
                 .excludePathPatterns("/contest/*")

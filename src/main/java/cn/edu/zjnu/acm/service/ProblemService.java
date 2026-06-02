@@ -51,24 +51,21 @@ public class ProblemService {
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;
         }
-        // 检查是否在 oj 容器内运行（oj 容器映射：D:\OnlineOJData:/onlinejudge）
+        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            String projectDataPath = "D:\\OJSystem\\data\\ojdata";
+            if (new File(projectDataPath).exists()) {
+                return projectDataPath;
+            }
+            return "D:\\OnlineOJData\\ojdata";
+        }
         File ojContainerPath = new File("/onlinejudge/ojdata");
         if (ojContainerPath.exists() || new File("/onlinejudge").exists()) {
-            // oj 容器内路径：/onlinejudge/ojdata
-            // 这个路径会通过 Docker volume 映射到 Windows 的 D:\OnlineOJData\ojdata
             return "/onlinejudge/ojdata";
         }
-        // 检查是否在 judger 容器内运行（judger 容器映射：D:\OnlineOJData\ojdata:/ojdata）
         File judgerContainerPath = new File("/ojdata");
         if (judgerContainerPath.exists() && judgerContainerPath.isDirectory()) {
             return "/ojdata";
         }
-        // Windows 开发环境默认路径（直接运行，不在容器内）
-        String windowsPath = "D:\\OnlineOJData\\ojdata";
-        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
-            return windowsPath;
-        }
-        // Linux 环境默认路径
         return "/ojdata";
     }
 

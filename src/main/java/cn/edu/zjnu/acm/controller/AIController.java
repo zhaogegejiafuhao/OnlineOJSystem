@@ -1,118 +1,163 @@
 package cn.edu.zjnu.acm.controller;
 
+import cn.edu.zjnu.acm.entity.Teacher;
+import cn.edu.zjnu.acm.entity.User;
 import cn.edu.zjnu.acm.entity.ai.AIGeneration;
-import cn.edu.zjnu.acm.exception.ForbiddenException;
 import cn.edu.zjnu.acm.exception.NeedLoginException;
+import cn.edu.zjnu.acm.repo.user.TeacherRepository;
 import cn.edu.zjnu.acm.service.AIService;
-import cn.edu.zjnu.acm.service.AIModelService;
 import cn.edu.zjnu.acm.util.RestfulResult;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpSession;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/ai")
 public class AIController {
     private final AIService aiService;
-    private final AIModelService aiModelService;
+    private final TeacherRepository teacherRepository;
     private final HttpSession session;
     
-    public AIController(AIService aiService, AIModelService aiModelService, HttpSession session) {
+    @Value("${ai.quota.admin-daily:100}")
+    private int adminDailyQuota;
+    
+    public AIController(AIService aiService, TeacherRepository teacherRepository, HttpSession session) {
         this.aiService = aiService;
-        this.aiModelService = aiModelService;
+        this.teacherRepository = teacherRepository;
         this.session = session;
     }
     
-    // 生成题目
     @PostMapping("/generate/problem")
     public RestfulResult generateProblem(@RequestBody GenerateProblemRequest request) {
-        checkPermission();
-        AIGeneration generation = aiService.generateProblem(request.getKeywords(), request.getDifficulty());
+        Long userId = checkAdminPermissionAndQuota();
+        AIGeneration generation = aiService.generateProblem(request.getKeywords(), request.getDifficulty(), userId);
         return new RestfulResult(200, "success", generation);
     }
     
-    // 生成题目解析
     @PostMapping("/generate/analysis")
     public RestfulResult generateAnalysis(@RequestBody GenerateAnalysisRequest request) {
-        checkPermission();
-        AIGeneration generation = aiService.generateAnalysis(request.getProblemContent());
+        Long userId = checkAdminPermissionAndQuota();
+        AIGeneration generation = aiService.generateAnalysis(request.getProblemContent(), userId);
         return new RestfulResult(200, "success", generation);
     }
     
-    // 生成解答
     @PostMapping("/generate/solution")
     public RestfulResult generateSolution(@RequestBody GenerateSolutionRequest request) {
-        checkPermission();
-        AIGeneration generation = aiService.generateSolution(request.getProblemContent(), request.getLanguage());
+        Long userId = checkAdminPermissionAndQuota();
+        AIGeneration generation = aiService.generateSolution(request.getProblemContent(), request.getLanguage(), userId);
         return new RestfulResult(200, "success", generation);
     }
     
-    // 获取生成记录
     @GetMapping("/generations")
     public RestfulResult getGenerations(@RequestParam(value = "page", defaultValue = "0") int page,
                                        @RequestParam(value = "size", defaultValue = "20") int size) {
-        checkPermission();
+        checkAdminPermission();
         Page<AIGeneration> generations = aiService.getGenerations(page, size);
         return new RestfulResult(200, "success", generations);
     }
     
-    // 获取统计信息
+    @GetMapping("/generations/{id}")
+    public RestfulResult getGenerationDetail(@PathVariable Long id) {
+        checkAdminPermission();
+        AIGeneration generation = aiService.getGenerationById(id).orElse(null);
+        if (generation == null || (generation.getDeleted() != null && generation.getDeleted())) {
+            return new RestfulResult(404, "生成记录不存在");
+        }
+        return new RestfulResult(200, "success", generation);
+    }
+    
+    @DeleteMapping("/generations/{id}")
+    public RestfulResult deleteGeneration(@PathVariable Long id) {
+        checkAdminPermission();
+        AIGeneration generation = aiService.getGenerationById(id).orElse(null);
+        if (generation == null) {
+            return new RestfulResult(404, "生成记录不存在");
+        }
+        aiService.softDeleteGeneration(id);
+        return new RestfulResult(200, "success", "已删除");
+    }
+    
     @GetMapping("/stats")
     public RestfulResult getStats() {
-        checkPermission();
+        checkAdminPermission();
         AIService.AIGenerationStats stats = aiService.getStats();
         return new RestfulResult(200, "success", stats);
     }
     
-    // 辅助方法
-    private void checkPermission() {
-        // 检查用户权限
-        // 这里应该实现具体的权限检查逻辑
-        // 暂时简化处理
-        Object user = session.getAttribute("currentUser");
+    @GetMapping("/quota")
+    public RestfulResult getQuota() {
+        User user = checkAdminPermission();
+        Map<String, Object> quotaInfo = getAdminQuotaInfo(user);
+        return new RestfulResult(200, "success", quotaInfo);
+    }
+    
+    @PostMapping("/batch/generate/problems")
+    public RestfulResult batchGenerateProblems(@RequestBody BatchGenerateProblemsRequest request) {
+        Long userId = checkAdminPermissionAndQuota();
+        if (request.getCount() < 1 || request.getCount() > 10) {
+            return new RestfulResult(400, "批量生成数量应在1-10之间");
+        }
+        try {
+            java.util.List<Long> taskIds = new java.util.ArrayList<>();
+            for (int i = 0; i < request.getCount(); i++) {
+                AIGeneration generation = aiService.generateProblem(
+                        request.getKeywords(), request.getDifficulty(), userId);
+                taskIds.add(generation.getId());
+            }
+            Map<String, Object> result = new HashMap<>();
+            result.put("taskIds", taskIds);
+            result.put("count", request.getCount());
+            result.put("message", "已提交" + request.getCount() + "个生成任务");
+            return new RestfulResult(200, "success", result);
+        } catch (Exception e) {
+            return new RestfulResult(500, "批量生成失败: " + e.getMessage());
+        }
+    }
+    
+    private User checkAdminPermission() {
+        User user = (User) session.getAttribute("currentUser");
         if (user == null) {
             throw new NeedLoginException();
         }
-        // 这里应该检查用户是否为管理员或教师
-        // 暂时假设所有登录用户都可以使用AI功能
-    }
-    
-    // 批量生成题目
-    @PostMapping("/batch/generate/problems")
-    public RestfulResult batchGenerateProblems(@RequestBody BatchGenerateProblemsRequest request) {
-        checkPermission();
-        try {
-            Object result = aiModelService.batchGenerateProblems(
-                    request.getModelType(),
-                    request.getKeywords(),
-                    request.getCount(),
-                    request.getDifficulty()
-            );
-            return new RestfulResult(200, "success", result);
-        } catch (Exception e) {
-            return new RestfulResult(500, "Batch generation failed: " + e.getMessage());
+        Teacher teacher = teacherRepository.findByUser(user).orElse(null);
+        if (teacher == null || teacher.getPrivilege() != Teacher.ADMIN) {
+            throw new RuntimeException("仅管理员可访问AI助手");
         }
+        return user;
     }
     
-    // 生成测试数据
-    @PostMapping("/generate/testdata")
-    public RestfulResult generateTestData(@RequestBody GenerateTestDataRequest request) {
-        checkPermission();
-        try {
-            Object result = aiModelService.generateTestData(
-                    request.getModelType(),
-                    request.getProblemDescription(),
-                    request.getCaseCount()
-            );
-            return new RestfulResult(200, "success", result);
-        } catch (Exception e) {
-            return new RestfulResult(500, "Test data generation failed: " + e.getMessage());
+    private Long checkAdminPermissionAndQuota() {
+        User user = checkAdminPermission();
+        Map<String, Object> quotaInfo = getAdminQuotaInfo(user);
+        int remaining = (int) quotaInfo.get("remaining");
+        if (remaining <= 0) {
+            throw new RuntimeException("今日AI使用配额已用完，配额: " + quotaInfo.get("quota") + "次/天");
         }
+        return user.getId();
     }
     
-    // 请求数据类
+    private Map<String, Object> getAdminQuotaInfo(User user) {
+        Instant todayStart = Instant.now().truncatedTo(ChronoUnit.DAYS);
+        Long used = aiService.getDailyUsageCount(user.getId(), todayStart);
+        int remaining = adminDailyQuota - (used != null ? used.intValue() : 0);
+        
+        Map<String, Object> info = new HashMap<>();
+        info.put("role", "admin");
+        info.put("quota", adminDailyQuota);
+        info.put("used", used != null ? used : 0);
+        info.put("remaining", Math.max(0, remaining));
+        return info;
+    }
+    
     @Data
     static class GenerateProblemRequest {
         private String keywords;
@@ -132,16 +177,8 @@ public class AIController {
     
     @Data
     static class BatchGenerateProblemsRequest {
-        private String modelType; // doubao, mimo, openai
         private String keywords;
         private int count;
         private String difficulty;
-    }
-    
-    @Data
-    static class GenerateTestDataRequest {
-        private String modelType; // doubao, mimo, openai
-        private String problemDescription;
-        private int caseCount;
     }
 }

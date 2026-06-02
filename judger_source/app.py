@@ -166,6 +166,130 @@ def judge():
     return "success"
 
 
+@app.route('/run', methods=['POST'])
+def run_code():
+    data = request.json
+    run_id = data.get('run_id', 'tmp_run')
+    source = data.get('source', '')
+    stdin_data = data.get('input', '')
+    language = data.get('language', 'cpp')
+    max_cpu_time = data.get('max_cpu_time', 5000)
+    max_memory = data.get('max_memory', 256 * 1024 * 1024)
+
+    lang_config = {
+        'cpp': {
+            'src': 'main.cpp',
+            'compile_command': '/usr/bin/g++ -DONLINE_JUDGE -O2 -Wall -std=c++14 main.cpp -lm -o main',
+            'run_command': './main',
+            'seccomp_rule': 'c_cpp',
+        },
+        'c': {
+            'src': 'main.c',
+            'compile_command': '/usr/bin/gcc -DONLINE_JUDGE -O2 -Wall -std=c99 main.c -lm -o main',
+            'run_command': './main',
+            'seccomp_rule': 'c_cpp',
+        },
+        'py3': {
+            'src': 'main.py',
+            'compile_command': '/usr/bin/python3 -m py_compile main.py',
+            'run_command': '/usr/bin/python3 main.py',
+            'seccomp_rule': 'general',
+        },
+        'java': {
+            'src': 'Main.java',
+            'compile_command': '/usr/bin/javac Main.java -encoding UTF8',
+            'run_command': '/usr/bin/java -Djava.security.manager -Dfile.encoding=UTF-8 Main',
+            'seccomp_rule': '',
+        },
+    }
+
+    if language not in lang_config:
+        return json.dumps({'status': 'error', 'message': f'Unsupported language: {language}'})
+
+    cfg = lang_config[language]
+    run_dir = os.path.join(TMP_DIR, f"run_{run_id}")
+    if os.path.exists(run_dir):
+        shutil.rmtree(run_dir)
+    os.makedirs(run_dir)
+
+    try:
+        with open(os.path.join(run_dir, cfg['src']), mode='w+', encoding='utf-8') as f:
+            f.write(source)
+
+        input_path = os.path.join(run_dir, 'stdin.txt')
+        with open(input_path, mode='w+', encoding='utf-8') as f:
+            f.write(stdin_data)
+
+        try:
+            compiler = Compiler(cfg['compile_command'], run_dir)
+            compiler()
+        except CompileError as ce:
+            return json.dumps({'status': 'CE', 'output': '', 'error': ce.message})
+
+        if language == 'java':
+            max_memory = -1
+            max_cpu_time *= 2
+        elif language.startswith('py'):
+            max_memory *= 2
+            max_cpu_time *= 2
+
+        output_path = os.path.join(run_dir, 'stdout.txt')
+        error_path = os.path.join(run_dir, 'stderr.txt')
+
+        import _judger
+        run_result = _judger.run(
+            max_cpu_time=max_cpu_time,
+            max_real_time=max_cpu_time * 3,
+            max_memory=max_memory,
+            max_stack=256 * 1024 * 1024,
+            max_output_size=32 * 1024 * 1024,
+            max_process_number=1,
+            exe_path=cfg['run_command'].split()[0],
+            input_path=input_path,
+            output_path=output_path,
+            error_path=error_path,
+            args=cfg['run_command'].split()[1:],
+            env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+            log_path=os.path.join(run_dir, 'run.log'),
+            seccomp_rule_name=cfg.get('seccomp_rule') or None,
+            uid=0,
+            gid=0,
+            memory_limit_check_only=0,
+        )
+
+        result_code = run_result.get('result', -1)
+        result_map = {-1: 'WA', 0: 'AC', 1: 'TLE', 2: 'TLE', 3: 'MLE', 4: 'RE', 5: 'SE'}
+        status = result_map.get(result_code, 'SE')
+
+        stdout_content = ''
+        if os.path.exists(output_path):
+            with open(output_path, encoding='utf-8', errors='replace') as f:
+                stdout_content = f.read()
+
+        stderr_content = ''
+        if os.path.exists(error_path):
+            with open(error_path, encoding='utf-8', errors='replace') as f:
+                stderr_content = f.read()
+
+        return json.dumps({
+            'status': status,
+            'output': stdout_content,
+            'error': stderr_content,
+            'cpu_time': run_result.get('cpu_time', 0),
+            'memory': run_result.get('memory', 0),
+        })
+
+    except Exception as e:
+        logging.error(f"Run code error: {e}")
+        return json.dumps({'status': 'SE', 'output': '', 'error': str(e)})
+    finally:
+        try:
+            if os.path.exists(run_dir):
+                shutil.rmtree(run_dir)
+        except Exception:
+            pass
+
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.split('.')[-1] in ['zip']

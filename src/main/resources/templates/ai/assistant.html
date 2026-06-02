@@ -5,111 +5,423 @@
     <meta charset="UTF-8">
     <title>AI助手</title>
     <link rel="stylesheet" href="/css/ai.css">
+    <script src="/editor/lib/marked.min.js"></script>
 </head>
 <body>
 <main class="ui container" id="ai-assistant">
     <div class="ui segment raised">
-        <h2 class="ui header">AI助手</h2>
+        <h2 class="ui header">
+            <i class="robot icon"></i>
+            AI题目助手
+        </h2>
         <div class="ui divider"></div>
         
-        <!-- 功能选择标签页 -->
+        <div class="ui segment" v-if="quotaInfo">
+            <div class="ui horizontal list">
+                <div class="item">
+                    <i class="shield icon"></i>
+                    <div class="content">
+                        <div class="header">管理员专属</div>
+                    </div>
+                </div>
+                <div class="item">
+                    <i class="chart bar icon"></i>
+                    <div class="content">
+                        <div class="header">今日配额: {{quotaInfo.used}}/{{quotaInfo.quota}}</div>
+                        <div class="description">
+                            <div class="ui tiny progress" :class="{success: quotaInfo.remaining > 20, warning: quotaInfo.remaining <= 20 && quotaInfo.remaining > 0, error: quotaInfo.remaining === 0}">
+                                <div class="bar" :style="{width: (quotaInfo.used / quotaInfo.quota * 100) + '%'}"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="ui top attached tabular menu">
-            <a class="item active" data-tab="problem">生成题目</a>
+            <a class="item active" data-tab="workflow">题目工作流</a>
             <a class="item" data-tab="analysis">生成解析</a>
             <a class="item" data-tab="solution">生成解答</a>
             <a class="item" data-tab="history">生成历史</a>
             <a class="item" data-tab="stats">统计信息</a>
         </div>
         
-        <!-- 生成题目 -->
-        <div class="ui bottom attached tab segment active" data-tab="problem">
-            <div class="ui form">
-                <div class="field">
-                    <label>关键词</label>
-                    <input type="text" placeholder="输入题目关键词，多个关键词用逗号分隔" v-model="problemKeywords">
+        <div class="ui bottom attached tab segment active" data-tab="workflow">
+            
+            <div class="ui steps" style="width:100%;margin-bottom:20px">
+                <div class="step" :class="{active: currentStep === 1, completed: currentStep > 1}">
+                    <i class="magic icon"></i>
+                    <div class="content">
+                        <div class="title">1. 生成题目+代码</div>
+                        <div class="description">AI生成题目和参考解答</div>
+                    </div>
                 </div>
-                <div class="field">
-                    <label>难度级别</label>
-                    <select class="ui dropdown" v-model="problemDifficulty">
-                        <option value="简单">简单</option>
-                        <option value="中等">中等</option>
-                        <option value="困难">困难</option>
-                    </select>
+                <div class="step" :class="{active: currentStep === 2, completed: currentStep > 2}">
+                    <i class="database icon"></i>
+                    <div class="content">
+                        <div class="title">2. 生成测试数据</div>
+                        <div class="description">AI生成输入数据</div>
+                    </div>
                 </div>
-                <button class="ui primary button" @click="generateProblem" :disabled="generating">
-                    <i class="spinner loading icon" v-if="generating"></i>
-                    {{generating ? '生成中...' : '生成题目'}}
-                </button>
-            </div>
-            <div class="ui divider"></div>
-            <div class="ui loading segment" v-if="generating">
-                <p>AI正在生成题目，请稍候...</p>
-            </div>
-            <div v-else-if="problemResult">
-                <div class="ui segment">
-                    <h3 class="ui header">生成结果</h3>
-                    <div class="ui divided list">
-                        <div class="item">
-                            <div class="content">
-                                <div class="header">题目内容</div>
-                                <div class="description" v-html="problemResult.generatedContent"></div>
-                            </div>
-                        </div>
-                        <div class="item" v-if="problemResult.evaluation">
-                            <div class="content">
-                                <div class="header">评估</div>
-                                <div class="description">{{problemResult.evaluation}}</div>
-                            </div>
-                        </div>
-                        <div class="item">
-                            <div class="content">
-                                <div class="header">状态</div>
-                                <div class="description">{{problemResult.status}}</div>
-                            </div>
-                        </div>
+                <div class="step" :class="{active: currentStep === 3, completed: currentStep > 3}">
+                    <i class="play circle icon"></i>
+                    <div class="content">
+                        <div class="title">3. 运行验证</div>
+                        <div class="description">运行参考代码获取输出</div>
+                    </div>
+                </div>
+                <div class="step" :class="{active: currentStep === 4, completed: currentStep > 4}">
+                    <i class="check circle icon"></i>
+                    <div class="content">
+                        <div class="title">4. 确认创建</div>
+                        <div class="description">审核后写入文件</div>
                     </div>
                 </div>
             </div>
+
+            <div v-if="currentStep === 1">
+                <h3 class="ui header">生成新题目</h3>
+                <div class="ui form">
+                    <div class="two fields">
+                        <div class="field">
+                            <label>关键词</label>
+                            <input type="text" placeholder="输入题目关键词，多个关键词用逗号分隔" v-model="problemKeywords">
+                        </div>
+                        <div class="field">
+                            <label>难度级别</label>
+                            <select class="ui dropdown" v-model="problemDifficulty">
+                                <option value="简单">简单</option>
+                                <option value="中等">中等</option>
+                                <option value="困难">困难</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="ui primary button" @click="generateDraftProblem" :disabled="generating" :class="{loading: generating}">
+                        <i class="magic icon"></i>
+                        AI生成题目+参考代码
+                    </button>
+                </div>
+                <div v-if="generateError" class="ui negative message" style="margin-top:15px">
+                    <div class="header">生成失败</div>
+                    <p>{{generateError}}</p>
+                </div>
+            </div>
+            
+            <div v-if="currentStep === 2 && draftProblem">
+                <div class="ui info message">
+                    <div class="header">步骤1完成：题目+参考代码已生成</div>
+                    <p>请检查题目和参考代码，修改后点击"保存草稿"，然后生成测试数据。</p>
+                </div>
+                
+                <h4 class="ui header"><i class="file text icon"></i>题目信息</h4>
+                <div class="ui form">
+                    <div class="field">
+                        <label>题目名称</label>
+                        <input type="text" v-model="editForm.title">
+                    </div>
+                    <div class="two fields">
+                        <div class="field">
+                            <label>时间限制 (ms)</label>
+                            <input type="number" v-model.number="editForm.timeLimit">
+                        </div>
+                        <div class="field">
+                            <label>内存限制 (KB)</label>
+                            <input type="number" v-model.number="editForm.memoryLimit">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>题目描述</label>
+                        <textarea rows="8" v-model="editForm.description"></textarea>
+                    </div>
+                    <div class="two fields">
+                        <div class="field">
+                            <label>输入格式</label>
+                            <textarea rows="4" v-model="editForm.input"></textarea>
+                        </div>
+                        <div class="field">
+                            <label>输出格式</label>
+                            <textarea rows="4" v-model="editForm.output"></textarea>
+                        </div>
+                    </div>
+                    <div class="two fields">
+                        <div class="field">
+                            <label>样例输入</label>
+                            <textarea rows="4" v-model="editForm.sampleInput"></textarea>
+                        </div>
+                        <div class="field">
+                            <label>样例输出</label>
+                            <textarea rows="4" v-model="editForm.sampleOutput"></textarea>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>提示</label>
+                        <textarea rows="3" v-model="editForm.hint"></textarea>
+                    </div>
+                    <div class="three fields">
+                        <div class="field">
+                            <label>来源</label>
+                            <input type="text" v-model="editForm.source">
+                        </div>
+                        <div class="field">
+                            <label>分数</label>
+                            <input type="number" v-model.number="editForm.score">
+                        </div>
+                        <div class="field">
+                            <label>标签 (逗号分隔)</label>
+                            <input type="text" v-model="editForm.tags">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ui divider"></div>
+                <h4 class="ui header"><i class="code icon"></i>参考解答代码 ({{editForm.solutionLanguage}})</h4>
+                <div class="ui form">
+                    <div class="field">
+                        <textarea rows="15" v-model="editForm.solutionCode" style="font-family:monospace;font-size:13px"></textarea>
+                    </div>
+                </div>
+                
+                <div class="ui divider"></div>
+                <div>
+                    <button class="ui blue button" @click="saveDraft" :disabled="submitting" :class="{loading: submitting}">
+                        <i class="save icon"></i>
+                        保存草稿
+                    </button>
+                    <button class="ui orange button" @click="goToStep3GenerateData" :disabled="!savedProblemId">
+                        <i class="database icon"></i>
+                        生成测试数据 →
+                    </button>
+                    <button class="ui button" @click="currentStep = 1">
+                        <i class="arrow left icon"></i>
+                        返回重新生成
+                    </button>
+                </div>
+            </div>
+            
+            <div v-if="currentStep === 3 && draftProblem">
+                <div class="ui info message">
+                    <div class="header">步骤2：生成测试输入数据</div>
+                    <p>AI将生成多组测试输入，然后用参考代码运行获取输出。</p>
+                </div>
+                
+                <div class="ui form" v-if="!testDataPreview && !runResults">
+                    <div class="two fields">
+                        <div class="field">
+                            <label>测试用例数量</label>
+                            <input type="number" v-model.number="testDataCount" min="3" max="20">
+                        </div>
+                        <div class="field">
+                            <label>&nbsp;</label>
+                            <button class="ui orange button" @click="generateTestData" :class="{loading: generatingTestData, disabled: generatingTestData}">
+                                <i class="database icon"></i>
+                                AI生成测试输入
+                            </button>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <button class="ui blue button small" @click="loadExistingTestData" :class="{loading: loadingTestData}">
+                            <i class="folder open icon"></i>加载已有测试数据
+                        </button>
+                    </div>
+                </div>
+                
+                <div v-if="generatingTestData" class="ui warning message">
+                    <i class="notched circle loading icon"></i>
+                    正在生成测试输入数据，请稍候...
+                </div>
+                
+                <div v-if="testDataPreview && !runResults">
+                    <h4 class="ui header"><i class="eye icon"></i>测试输入预览（共 {{testDataPreview.count}} 组）</h4>
+                    <div class="ui info message">
+                        <i class="info circle icon"></i>
+                        请检查输入数据是否合理，确认后点击"运行参考代码"获取输出。
+                    </div>
+                    <div v-for="(tc, idx) in testDataPreview.testCases" :key="idx" style="margin-bottom:10px">
+                        <div class="ui top attached header" style="background:#f5f5f5;padding:6px 12px">
+                            <strong>测试用例 {{tc.caseNum}}</strong>
+                            <div class="ui mini buttons" style="float:right">
+                                <button class="ui icon mini button" @click="startEditTestCase(tc)" title="编辑"><i class="edit icon"></i></button>
+                                <button class="ui icon mini red button" @click="removeTestCaseFromPreview(tc.caseNum)" title="删除"><i class="trash icon"></i></button>
+                            </div>
+                        </div>
+                        <div class="ui attached segment" v-if="editingTestCase !== tc.caseNum">
+                            <label style="font-weight:bold;color:#666">输入</label>
+                            <pre style="margin:5px 0;white-space:pre-wrap;word-break:break-all;background:#fafafa;padding:8px;border-radius:4px;font-size:13px">{{tc.input}}</pre>
+                        </div>
+                        <div class="ui attached segment" style="padding:10px" v-if="editingTestCase === tc.caseNum">
+                            <div class="ui form">
+                                <div class="field">
+                                    <label>输入</label>
+                                    <textarea rows="4" v-model="editTestCaseInput"></textarea>
+                                </div>
+                                <div class="ui mini buttons">
+                                    <button class="ui green mini button" @click="saveEditTestCaseInline(tc)"><i class="check icon"></i>保存</button>
+                                    <button class="ui mini button" @click="editingTestCase=null"><i class="cancel icon"></i>取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ui divider"></div>
+                    <button class="ui green button" @click="runSolutionCode" :class="{loading: runningSolution, disabled: runningSolution}">
+                        <i class="play icon"></i>
+                        运行参考代码获取输出 →
+                    </button>
+                    <button class="ui button" @click="testDataPreview=null">
+                        <i class="undo icon"></i>
+                        重新生成
+                    </button>
+                </div>
+                
+                <div v-if="runResults">
+                    <h4 class="ui header"><i class="play circle icon"></i>运行结果（{{runResults.acCases}}/{{runResults.totalCases}} 通过）</h4>
+                    <div v-if="runResults.allPassed" class="ui success message">
+                        <i class="check circle icon"></i>
+                        所有测试用例均通过！可以确认创建文件。
+                    </div>
+                    <div v-else class="ui warning message">
+                        <i class="exclamation triangle icon"></i>
+                        部分测试用例未通过，请检查参考代码或测试数据。
+                    </div>
+                    <div v-for="(r, idx) in runResults.results" :key="idx" style="margin-bottom:10px">
+                        <div class="ui top attached header" :style="{background: r.status === 'AC' ? '#fcfff5' : '#fff5f5', padding:'6px 12px'}">
+                            <strong>测试用例 {{r.caseNum}}</strong>
+                            <span class="ui mini label" :class="{green: r.status === 'AC', red: r.status !== 'AC'}">{{r.status}}</span>
+                            <span style="margin-left:10px;color:#999;font-size:12px">{{r.cpuTime}}ms / {{(r.memory / 1024).toFixed(0)}}KB</span>
+                        </div>
+                        <div class="ui attached segment" style="padding:0">
+                            <div class="ui two column very relaxed grid" style="margin:0">
+                                <div class="column" style="border-right:1px solid #ddd;padding:10px">
+                                    <label style="font-weight:bold;color:#666">输入</label>
+                                    <pre style="margin:5px 0;white-space:pre-wrap;word-break:break-all;background:#fafafa;padding:8px;border-radius:4px;font-size:13px">{{getInputForCase(r.caseNum)}}</pre>
+                                </div>
+                                <div class="column" style="padding:10px">
+                                    <label style="font-weight:bold;color:#666">输出</label>
+                                    <pre style="margin:5px 0;white-space:pre-wrap;word-break:break-all;background:#fafafa;padding:8px;border-radius:4px;font-size:13px">{{r.output || '(空)'}}</pre>
+                                    <div v-if="r.error" style="margin-top:5px">
+                                        <label style="font-weight:bold;color:#c00">错误信息</label>
+                                        <pre style="margin:5px 0;white-space:pre-wrap;color:#c00;font-size:12px">{{r.error}}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ui divider"></div>
+                    <button class="ui green button" @click="goToStep4" :disabled="!runResults.allPassed">
+                        <i class="check icon"></i>
+                        确认创建文件 →
+                    </button>
+                    <button class="ui orange button" v-if="runResults && !runResults.allPassed" @click="forceGoToStep4">
+                        <i class="exclamation triangle icon"></i>
+                        强制创建（忽略失败用例） →
+                    </button>
+                    <button class="ui button" @click="runResults=null">
+                        <i class="undo icon"></i>
+                        重新运行
+                    </button>
+                    <button class="ui button" @click="runResults=null;testDataPreview=null">
+                        <i class="undo icon"></i>
+                        重新生成数据
+                    </button>
+                </div>
+                
+                <div v-if="testDataError" class="ui error message">
+                    <i class="remove icon"></i>
+                    {{testDataError}}
+                </div>
+                
+                <div class="ui divider"></div>
+                <button class="ui button" @click="currentStep = 2">
+                    <i class="arrow left icon"></i>
+                    返回编辑题目
+                </button>
+            </div>
+            
+            <div v-if="currentStep === 4 && runResults">
+                <div class="ui info message">
+                    <div class="header">步骤4：确认创建测试文件</div>
+                    <p>以下测试数据将写入文件，请最终确认。</p>
+                </div>
+                
+                <table class="ui celled table">
+                    <thead>
+                        <tr>
+                            <th>用例编号</th>
+                            <th>输入文件</th>
+                            <th>输出文件</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(r, idx) in runResults.results" :key="idx">
+                            <td>{{r.caseNum}}</td>
+                            <td>{{r.caseNum}}.in ({{getInputForCase(r.caseNum).length}} 字节)</td>
+                            <td>{{r.caseNum}}.out ({{(r.output || '').length}} 字节)</td>
+                            <td><span class="ui label" :class="{green: r.status === 'AC', red: r.status !== 'AC'}">{{r.status}}</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="ui divider"></div>
+                <button class="ui green button" @click="confirmCreateFiles" :class="{loading: confirmingTestData}">
+                    <i class="check circle icon"></i>
+                    确认创建文件
+                </button>
+                <button class="ui button" @click="currentStep = 3">
+                    <i class="arrow left icon"></i>
+                    返回修改
+                </button>
+                
+                <div v-if="confirmMessage" class="ui success message" style="margin-top:15px">
+                    <i class="check circle icon"></i>
+                    <div v-html="confirmMessage"></div>
+                </div>
+                <div v-if="testDataError" class="ui error message" style="margin-top:15px">
+                    <i class="exclamation circle icon"></i>
+                    {{testDataError}}
+                </div>
+            </div>
+            
+            <div v-if="currentStep === 5">
+                <div class="ui success message">
+                    <div class="header">全部完成！</div>
+                    <p>题目已保存，测试数据已创建。</p>
+                </div>
+                <div class="ui segment" v-if="savedProblemId">
+                    <table class="ui definition table">
+                        <tr><td>题目ID</td><td>#{{savedProblemId}}</td></tr>
+                        <tr><td>题目名称</td><td>{{editForm.title}}</td></tr>
+                    </table>
+                </div>
+                <button class="ui primary button" @click="resetWorkflow">
+                    <i class="plus icon"></i>
+                    继续生成新题目
+                </button>
+                <button class="ui green button" @click="submitForReview" :disabled="submitting" :class="{loading: submitting}">
+                    <i class="check icon"></i>
+                    提交审核
+                </button>
+            </div>
         </div>
         
-        <!-- 生成解析 -->
         <div class="ui bottom attached tab segment" data-tab="analysis">
             <div class="ui form">
                 <div class="field">
                     <label>题目内容</label>
                     <textarea rows="10" placeholder="输入题目内容" v-model="analysisProblemContent"></textarea>
                 </div>
-                <button class="ui primary button" @click="generateAnalysis" :disabled="generatingAnalysis">
-                    <i class="spinner loading icon" v-if="generatingAnalysis"></i>
-                    {{generatingAnalysis ? '生成中...' : '生成解析'}}
+                <button class="ui primary button" @click="generateAnalysis" :disabled="generatingAnalysis" :class="{loading: generatingAnalysis}">
+                    生成解析
                 </button>
             </div>
             <div class="ui divider"></div>
-            <div class="ui loading segment" v-if="generatingAnalysis">
-                <p>AI正在生成解析，请稍候...</p>
-            </div>
-            <div v-else-if="analysisResult">
+            <div v-if="analysisResult">
                 <div class="ui segment">
-                    <h3 class="ui header">生成结果</h3>
-                    <div class="ui divided list">
-                        <div class="item">
-                            <div class="content">
-                                <div class="header">解析内容</div>
-                                <div class="description" v-html="analysisResult.generatedContent"></div>
-                            </div>
-                        </div>
-                        <div class="item">
-                            <div class="content">
-                                <div class="header">状态</div>
-                                <div class="description">{{analysisResult.status}}</div>
-                            </div>
-                        </div>
-                    </div>
+                    <h3 class="ui header">解析结果</h3>
+                    <div v-html="renderMarkdown(analysisResult.generatedContent)"></div>
                 </div>
             </div>
         </div>
         
-        <!-- 生成解答 -->
         <div class="ui bottom attached tab segment" data-tab="solution">
             <div class="ui form">
                 <div class="field">
@@ -126,37 +438,55 @@
                         <option value="Go">Go</option>
                     </select>
                 </div>
-                <button class="ui primary button" @click="generateSolution" :disabled="generatingSolution">
-                    <i class="spinner loading icon" v-if="generatingSolution"></i>
-                    {{generatingSolution ? '生成中...' : '生成解答'}}
+                <button class="ui primary button" @click="generateSolution" :disabled="generatingSolution" :class="{loading: generatingSolution}">
+                    生成解答
                 </button>
             </div>
             <div class="ui divider"></div>
-            <div class="ui loading segment" v-if="generatingSolution">
-                <p>AI正在生成解答，请稍候...</p>
-            </div>
-            <div v-else-if="solutionResult">
+            <div v-if="solutionResult">
                 <div class="ui segment">
-                    <h3 class="ui header">生成结果</h3>
-                    <div class="ui divided list">
-                        <div class="item">
-                            <div class="content">
-                                <div class="header">解答内容</div>
-                                <div class="description" v-html="solutionResult.generatedContent"></div>
-                            </div>
-                        </div>
-                        <div class="item">
-                            <div class="content">
-                                <div class="header">状态</div>
-                                <div class="description">{{solutionResult.status}}</div>
-                            </div>
-                        </div>
-                    </div>
+                    <h3 class="ui header">解答结果</h3>
+                    <div v-html="renderMarkdown(solutionResult.generatedContent)"></div>
                 </div>
             </div>
         </div>
         
-        <!-- 生成历史 -->
+        <div class="ui modal" id="generation-detail-modal">
+            <i class="close icon"></i>
+            <div class="header">
+                <i class="file alternate icon"></i>
+                生成记录详情
+            </div>
+            <div class="content">
+                <template v-if="generationDetail">
+                    <table class="ui definition table">
+                        <tr><td width="120">ID</td><td>#{{generationDetail.id}}</td></tr>
+                        <tr><td>类型</td><td><span class="ui label">{{generationDetail.type}}</span></td></tr>
+                        <tr><td>模型</td><td>{{generationDetail.model}}</td></tr>
+                        <tr><td>状态</td><td>
+                            <span class="ui label" :class="{green: generationDetail.status === 'COMPLETED', yellow: generationDetail.status === 'PROCESSING', red: generationDetail.status === 'FAILED'}">
+                                {{generationDetail.status}}
+                            </span>
+                        </td></tr>
+                        <tr><td>创建时间</td><td>{{formatTime(generationDetail.createTime)}}</td></tr>
+                        <tr><td>完成时间</td><td>{{generationDetail.completeTime ? formatTime(generationDetail.completeTime) : '-'}}</td></tr>
+                        <tr><td>耗时</td><td>{{generationDetail.responseTime ? generationDetail.responseTime.toFixed(2) + 's' : '-'}}</td></tr>
+                        <tr><td>成本</td><td>¥{{generationDetail.cost ? generationDetail.cost.toFixed(4) : '0.0000'}}</td></tr>
+                    </table>
+                    <div class="ui segment" v-if="generationDetail.generatedContent">
+                        <h4 class="ui header">生成内容</h4>
+                        <div v-html="renderMarkdown(generationDetail.generatedContent)"></div>
+                    </div>
+                </template>
+            </div>
+            <div class="actions">
+                <div class="ui red button" v-if="generationDetail" @click="deleteGeneration(generationDetail.id)">
+                    <i class="trash icon"></i>删除记录
+                </div>
+                <div class="ui cancel button">关闭</div>
+            </div>
+        </div>
+        
         <div class="ui bottom attached tab segment" data-tab="history">
             <div class="ui loading segment" v-if="!historyReady">
                 <p>加载中...</p>
@@ -177,7 +507,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="item in history.content" :key="item.id">
+                        <tr v-for="(item, index) in history.content" :key="index">
                             <td>{{item.type}}</td>
                             <td>{{item.model}}</td>
                             <td>
@@ -201,13 +531,12 @@
             </div>
         </div>
         
-        <!-- 统计信息 -->
         <div class="ui bottom attached tab segment" data-tab="stats">
             <div class="ui loading segment" v-if="!statsReady">
                 <p>加载中...</p>
             </div>
             <div v-else>
-                <div class="ui three statistics">
+                <div class="ui four statistics">
                     <div class="statistic">
                         <div class="value">{{stats.totalGenerations}}</div>
                         <div class="label">总生成次数</div>
@@ -217,8 +546,12 @@
                         <div class="label">完成次数</div>
                     </div>
                     <div class="statistic">
-                        <div class="value">{{stats.avgResponseTime.toFixed(2)}}s</div>
+                        <div class="value">{{stats.avgResponseTime ? stats.avgResponseTime.toFixed(2) : '0'}}s</div>
                         <div class="label">平均响应时间</div>
+                    </div>
+                    <div class="statistic">
+                        <div class="value">¥{{stats.totalCost ? stats.totalCost.toFixed(4) : '0.0000'}}</div>
+                        <div class="label">累计成本(元)</div>
                     </div>
                 </div>
             </div>
@@ -230,92 +563,460 @@
     var aiAssistant = new Vue({
         el: "#ai-assistant",
         data: {
-            // 生成题目
+            currentStep: 1,
+            generating: false,
+            submitting: false,
+            generateError: '',
             problemKeywords: '',
             problemDifficulty: '中等',
-            problemResult: null,
-            generating: false,
+            draftProblem: null,
+            savedProblemId: null,
+            asyncGenerationId: null,
+            pollTimer: null,
+            editForm: {
+                title: '',
+                description: '',
+                input: '',
+                output: '',
+                sampleInput: '',
+                sampleOutput: '',
+                hint: '',
+                source: '',
+                timeLimit: 1000,
+                memoryLimit: 65536,
+                score: 100,
+                tags: '',
+                solutionLanguage: 'cpp',
+                solutionCode: ''
+            },
             
-            // 生成解析
             analysisProblemContent: '',
             analysisResult: null,
             generatingAnalysis: false,
             
-            // 生成解答
             solutionProblemContent: '',
             solutionLanguage: 'Java',
             solutionResult: null,
             generatingSolution: false,
             
-            // 生成历史
             history: {content: []},
             historyReady: false,
+            generationDetail: null,
             
-            // 统计信息
-            stats: null,
-            statsReady: false
+            stats: {},
+            quotaInfo: null,
+            statsReady: false,
+            
+            testDataCount: 5,
+            generatingTestData: false,
+            testDataPreview: null,
+            testDataError: '',
+            confirmingTestData: false,
+            editingTestCase: null,
+            editTestCaseInput: '',
+            loadingTestData: false,
+            
+            runResults: null,
+            runningSolution: false,
+            confirmMessage: ''
         },
         mounted: function() {
             this.initTabs();
             this.loadHistory();
             this.loadStats();
         },
+        updated: function() {
+            this.$nextTick(function() {
+                this.renderKaTeX();
+            });
+        },
         methods: {
             initTabs: function() {
                 $('.tabular.menu .item').tab();
             },
-            generateProblem: function() {
-                if (!this.problemKeywords) {
-                    alert('请输入关键词');
-                    return;
+            
+            renderKaTeX: function() {
+                var els = document.querySelectorAll('.markdown-content, [v-html]');
+                if (typeof renderMathInElement === 'function') {
+                    try {
+                        renderMathInElement(document.getElementById('ai-assistant'), {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false},
+                                {left: '\\(', right: '\\)', display: false},
+                                {left: '\\[', right: '\\]', display: true}
+                            ],
+                            throwOnError: false
+                        });
+                    } catch(e) {}
                 }
+            },
+            
+            generateDraftProblem: function() {
+                if (!this.problemKeywords) { alert('请输入关键词'); return; }
                 this.generating = true;
-                this.problemResult = null;
+                this.generateError = '';
                 var that = this;
-                axios.post('/api/ai/generate/problem', {
+                axios.post('/api/ai/workflow/async-generate', {
                     keywords: this.problemKeywords,
                     difficulty: this.problemDifficulty
                 }).then(function(res) {
                     if (res.data.code === 200) {
-                        that.problemResult = res.data.data;
+                        that.asyncGenerationId = res.data.data;
+                        that.startPolling();
                     } else {
-                        alert('生成失败: ' + res.data.message);
+                        that.generateError = res.data.message || '生成失败';
+                        that.generating = false;
                     }
-                    that.generating = false;
                 }).catch(function(error) {
-                    console.error(error);
-                    alert('生成失败: ' + error.message);
+                    if (error.response && error.response.data) {
+                        that.generateError = error.response.data.message || JSON.stringify(error.response.data);
+                    } else {
+                        that.generateError = error.message || '网络错误';
+                    }
                     that.generating = false;
                 });
             },
-            generateAnalysis: function() {
-                if (!this.analysisProblemContent) {
-                    alert('请输入题目内容');
+            
+            startPolling: function() {
+                var that = this;
+                var pollCount = 0;
+                var maxPolls = 90;
+                var consecutiveErrors = 0;
+                this.pollTimer = setInterval(function() {
+                    pollCount++;
+                    if (pollCount > maxPolls) {
+                        clearInterval(that.pollTimer);
+                        that.pollTimer = null;
+                        that.generating = false;
+                        that.generateError = '生成超时';
+                        return;
+                    }
+                    axios.get('/api/ai/workflow/async-result/' + that.asyncGenerationId)
+                    .then(function(res) {
+                        consecutiveErrors = 0;
+                        if (res.data.code === 200) {
+                            var result = res.data.data;
+                            if (result.status === 'COMPLETED' && result.problemId) {
+                                clearInterval(that.pollTimer);
+                                that.pollTimer = null;
+                                that.loadDraftProblem(result.problemId);
+                            } else if (result.status === 'FAILED') {
+                                clearInterval(that.pollTimer);
+                                that.pollTimer = null;
+                                that.generating = false;
+                                that.generateError = result.errorMessage || 'AI生成失败';
+                            } else if (result.status === 'NOT_FOUND') {
+                                clearInterval(that.pollTimer);
+                                that.pollTimer = null;
+                                that.generating = false;
+                                that.generateError = '生成记录不存在';
+                            }
+                        } else {
+                            consecutiveErrors++;
+                            if (consecutiveErrors >= 5) {
+                                clearInterval(that.pollTimer);
+                                that.pollTimer = null;
+                                that.generating = false;
+                                that.generateError = '查询状态失败';
+                            }
+                        }
+                    }).catch(function(error) {
+                        consecutiveErrors++;
+                        if (consecutiveErrors >= 5) {
+                            clearInterval(that.pollTimer);
+                            that.pollTimer = null;
+                            that.generating = false;
+                            that.generateError = '网络连接异常';
+                        }
+                    });
+                }, 2000);
+            },
+            
+            loadDraftProblem: function(problemId) {
+                var that = this;
+                axios.get('/api/ai/workflow/draft-problem/' + problemId)
+                .then(function(res) {
+                    if (res.data.code === 200) {
+                        that.draftProblem = res.data.data;
+                        that.initEditForm();
+                        that.currentStep = 2;
+                    } else {
+                        that.generateError = '加载题目失败';
+                    }
+                    that.generating = false;
+                }).catch(function(error) {
+                    that.generateError = '加载题目失败: ' + error.message;
+                    that.generating = false;
+                });
+            },
+            
+            initEditForm: function() {
+                if (!this.draftProblem) return;
+                this.editForm.title = this.draftProblem.title || '';
+                this.editForm.description = this.draftProblem.description || '';
+                this.editForm.input = this.draftProblem.input || '';
+                this.editForm.output = this.draftProblem.output || '';
+                this.editForm.sampleInput = this.draftProblem.sampleInput || '';
+                this.editForm.sampleOutput = this.draftProblem.sampleOutput || '';
+                this.editForm.hint = this.draftProblem.hint || '';
+                this.editForm.source = this.draftProblem.source || '';
+                this.editForm.timeLimit = this.draftProblem.timeLimit || 1000;
+                this.editForm.memoryLimit = this.draftProblem.memoryLimit || 65536;
+                this.editForm.score = this.draftProblem.score || 100;
+                this.editForm.solutionLanguage = this.draftProblem.solutionLanguage || 'cpp';
+                this.editForm.solutionCode = this.draftProblem.solutionCode || '';
+                var tagNames = '';
+                if (this.draftProblem.tags && Array.isArray(this.draftProblem.tags) && this.draftProblem.tags.length > 0) {
+                    tagNames = this.draftProblem.tags.map(function(t) { return typeof t === 'string' ? t : (t.name || ''); }).join(',');
+                }
+                this.editForm.tags = tagNames;
+            },
+            
+            saveDraft: function() {
+                var that = this;
+                this.submitting = true;
+                var postData = Object.assign({}, this.editForm, {problemId: this.savedProblemId});
+                axios.post('/api/ai/workflow/edit-draft/' + this.draftProblem.id, postData)
+                .then(function(res) {
+                    if (res.data.code === 200) {
+                        that.savedProblemId = res.data.data.problemId;
+                        alert('草稿已保存，题目ID: #' + that.savedProblemId);
+                    } else {
+                        alert('保存失败: ' + res.data.message);
+                    }
+                    that.submitting = false;
+                }).catch(function(error) {
+                    alert('保存失败: ' + error.message);
+                    that.submitting = false;
+                });
+            },
+            
+            goToStep3GenerateData: function() {
+                if (!this.savedProblemId) {
+                    alert('请先保存草稿');
                     return;
                 }
+                this.testDataPreview = null;
+                this.runResults = null;
+                this.testDataError = '';
+                this.currentStep = 3;
+            },
+            
+            generateTestData: function() {
+                var problemId = this.savedProblemId;
+                if (!problemId) { alert('请先保存题目草稿'); return; }
+                if (this.testDataCount < 1 || this.testDataCount > 20) { alert('数量应在1-20之间'); return; }
+                this.generatingTestData = true;
+                this.testDataPreview = null;
+                this.testDataError = '';
+                var that = this;
+                axios.post('/api/ai/workflow/generate-testdata', {
+                    problemId: problemId,
+                    caseCount: this.testDataCount
+                }).then(function(res) {
+                    that.generatingTestData = false;
+                    if (res.data.code === 200) {
+                        that.testDataPreview = res.data.data;
+                    } else {
+                        that.testDataError = '生成失败: ' + (res.data.message || '未知错误');
+                    }
+                }).catch(function(error) {
+                    that.generatingTestData = false;
+                    that.testDataError = '生成失败: ' + (error.message || '网络错误');
+                });
+            },
+            
+            runSolutionCode: function() {
+                if (!this.editForm.solutionCode) {
+                    alert('参考代码为空，请先在步骤2中填写参考代码');
+                    return;
+                }
+                if (!this.testDataPreview || !this.testDataPreview.testCases) {
+                    alert('没有测试输入数据');
+                    return;
+                }
+                this.runningSolution = true;
+                this.testDataError = '';
+                var inputs = this.testDataPreview.testCases.map(function(tc) { return tc.input; });
+                var that = this;
+                axios.post('/api/ai/workflow/run-solution', {
+                    source: this.editForm.solutionCode,
+                    language: this.editForm.solutionLanguage || 'cpp',
+                    inputs: inputs,
+                    timeLimit: this.editForm.timeLimit,
+                    memoryLimit: this.editForm.memoryLimit
+                }).then(function(res) {
+                    that.runningSolution = false;
+                    if (res.data.code === 200) {
+                        that.runResults = res.data.data;
+                        if (that.runResults.results && that.runResults.results.length > 0 && that.runResults.results[0].status === 'SE') {
+                            that.testDataError = 'Judge服务不可用，请确认judger服务已启动并包含/run端点。错误: ' + (that.runResults.results[0].error || '');
+                        }
+                    } else {
+                        that.testDataError = '运行失败: ' + (res.data.message || '未知错误');
+                    }
+                }).catch(function(error) {
+                    that.runningSolution = false;
+                    that.testDataError = '运行失败: ' + (error.message || '网络错误') + '。请确认Judge服务是否可用。';
+                });
+            },
+            
+            getInputForCase: function(caseNum) {
+                if (!this.testDataPreview || !this.testDataPreview.testCases) return '';
+                for (var i = 0; i < this.testDataPreview.testCases.length; i++) {
+                    if (this.testDataPreview.testCases[i].caseNum === caseNum) {
+                        return this.testDataPreview.testCases[i].input;
+                    }
+                }
+                return '';
+            },
+            
+            goToStep4: function() {
+                this.confirmMessage = '';
+                this.currentStep = 4;
+            },
+            
+            forceGoToStep4: function() {
+                if (!confirm('部分测试用例未通过，强制创建可能导致评测异常。确定继续吗？')) return;
+                this.confirmMessage = '';
+                this.currentStep = 4;
+            },
+            
+            confirmCreateFiles: function() {
+                if (!this.runResults) {
+                    alert('请先运行参考代码');
+                    return;
+                }
+                this.confirmingTestData = true;
+                this.testDataError = '';
+                var that = this;
+                var previewId = this.testDataPreview ? this.testDataPreview.previewId : null;
+                var inputs = [];
+                if (this.testDataPreview && this.testDataPreview.testCases) {
+                    inputs = this.testDataPreview.testCases.map(function(tc) { return tc.input || ''; });
+                }
+                var outputs = this.runResults.results.map(function(r) {
+                    return { output: r.output || '' };
+                });
+                axios.post('/api/ai/workflow/confirm-testdata', {
+                    previewId: previewId,
+                    problemId: this.savedProblemId,
+                    inputs: inputs,
+                    outputs: outputs
+                }).then(function(res) {
+                    that.confirmingTestData = false;
+                    if (res.data.code === 200) {
+                        that.confirmMessage = '测试数据文件创建成功！共 ' + res.data.data.count + ' 组。路径: ' + res.data.data.path;
+                        setTimeout(function() {
+                            that.currentStep = 5;
+                        }, 1500);
+                    } else {
+                        that.testDataError = '创建失败: ' + (res.data.message || '未知错误');
+                    }
+                }).catch(function(error) {
+                    that.confirmingTestData = false;
+                    that.testDataError = '创建失败: ' + (error.message || '网络错误');
+                });
+            },
+            
+            submitForReview: function() {
+                if (!this.savedProblemId) { alert('题目未保存'); return; }
+                this.submitting = true;
+                var that = this;
+                axios.post('/api/ai/workflow/submit-for-review/' + this.savedProblemId)
+                .then(function(res) {
+                    if (res.data.code === 200) {
+                        alert('提交审核成功！');
+                    } else {
+                        alert('提交失败: ' + res.data.message);
+                    }
+                    that.submitting = false;
+                }).catch(function(error) {
+                    alert('提交失败: ' + error.message);
+                    that.submitting = false;
+                });
+            },
+            
+            loadExistingTestData: function() {
+                var problemId = this.savedProblemId;
+                if (!problemId) { alert('请先保存题目草稿'); return; }
+                this.loadingTestData = true;
+                this.testDataError = '';
+                var that = this;
+                axios.get('/api/ai/workflow/testdata/' + problemId).then(function(res) {
+                    that.loadingTestData = false;
+                    if (res.data.code === 200) {
+                        that.testDataPreview = res.data.data;
+                        that.testDataPreview.previewId = null;
+                    } else {
+                        that.testDataError = res.data.message || '加载失败';
+                    }
+                }).catch(function(error) {
+                    that.loadingTestData = false;
+                    that.testDataError = '加载失败: ' + (error.message || '网络错误');
+                });
+            },
+            
+            startEditTestCase: function(tc) {
+                this.editingTestCase = tc.caseNum;
+                this.editTestCaseInput = tc.input || '';
+            },
+            
+            saveEditTestCaseInline: function(tc) {
+                tc.input = this.editTestCaseInput;
+                this.editingTestCase = null;
+            },
+            
+            removeTestCaseFromPreview: function(caseNum) {
+                if (!confirm('确定要移除测试用例 ' + caseNum + ' 吗？')) return;
+                if (this.testDataPreview && this.testDataPreview.testCases) {
+                    var idx = -1;
+                    for (var i = 0; i < this.testDataPreview.testCases.length; i++) {
+                        if (this.testDataPreview.testCases[i].caseNum === caseNum) { idx = i; break; }
+                    }
+                    if (idx >= 0) {
+                        this.testDataPreview.testCases.splice(idx, 1);
+                        for (var j = 0; j < this.testDataPreview.testCases.length; j++) {
+                            this.testDataPreview.testCases[j].caseNum = j + 1;
+                        }
+                        this.testDataPreview.count = this.testDataPreview.testCases.length;
+                    }
+                }
+            },
+            
+            resetWorkflow: function() {
+                if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+                this.currentStep = 1;
+                this.draftProblem = null;
+                this.savedProblemId = null;
+                this.problemKeywords = '';
+                this.generateError = '';
+                this.asyncGenerationId = null;
+                this.testDataPreview = null;
+                this.runResults = null;
+                this.testDataError = '';
+                this.confirmMessage = '';
+            },
+            
+            generateAnalysis: function() {
+                if (!this.analysisProblemContent) { alert('请输入题目内容'); return; }
                 this.generatingAnalysis = true;
                 this.analysisResult = null;
                 var that = this;
                 axios.post('/api/ai/generate/analysis', {
                     problemContent: this.analysisProblemContent
                 }).then(function(res) {
-                    if (res.data.code === 200) {
-                        that.analysisResult = res.data.data;
-                    } else {
-                        alert('生成失败: ' + res.data.message);
-                    }
+                    if (res.data.code === 200) { that.analysisResult = res.data.data; }
+                    else { alert('生成失败: ' + res.data.message); }
                     that.generatingAnalysis = false;
                 }).catch(function(error) {
-                    console.error(error);
                     alert('生成失败: ' + error.message);
                     that.generatingAnalysis = false;
                 });
             },
             generateSolution: function() {
-                if (!this.solutionProblemContent) {
-                    alert('请输入题目内容');
-                    return;
-                }
+                if (!this.solutionProblemContent) { alert('请输入题目内容'); return; }
                 this.generatingSolution = true;
                 this.solutionResult = null;
                 var that = this;
@@ -323,74 +1024,67 @@
                     problemContent: this.solutionProblemContent,
                     language: this.solutionLanguage
                 }).then(function(res) {
-                    if (res.data.code === 200) {
-                        that.solutionResult = res.data.data;
-                    } else {
-                        alert('生成失败: ' + res.data.message);
-                    }
+                    if (res.data.code === 200) { that.solutionResult = res.data.data; }
+                    else { alert('生成失败: ' + res.data.message); }
                     that.generatingSolution = false;
                 }).catch(function(error) {
-                    console.error(error);
                     alert('生成失败: ' + error.message);
                     that.generatingSolution = false;
                 });
             },
-            loadHistory: function(page = 0) {
+            loadHistory: function(page) {
+                page = page || 0;
                 this.historyReady = false;
                 var that = this;
-                axios.get('/api/ai/generations', {
-                    params: {
-                        page: page,
-                        size: 20
-                    }
-                }).then(function(res) {
-                    if (res.data.code === 200) {
-                        that.history = res.data.data;
-                        that.historyReady = true;
-                    } else {
-                        console.error(res.data.message);
-                    }
-                }).catch(function(error) {
-                    console.error(error);
-                });
+                axios.get('/api/ai/generations', { params: { page: page, size: 20 } })
+                .then(function(res) {
+                    if (res.data.code === 200) { that.history = res.data.data; that.historyReady = true; }
+                }).catch(function(error) { console.error(error); });
             },
-            changeHistoryPage: function(page) {
-                this.loadHistory(page);
-            },
+            changeHistoryPage: function(page) { this.loadHistory(page); },
             loadStats: function() {
                 this.statsReady = false;
                 var that = this;
                 axios.get('/api/ai/stats').then(function(res) {
-                    if (res.data.code === 200) {
-                        that.stats = res.data.data;
-                        that.statsReady = true;
-                    } else {
-                        console.error(res.data.message);
-                    }
-                }).catch(function(error) {
-                    console.error(error);
-                });
+                    if (res.data.code === 200) { that.stats = res.data.data; that.statsReady = true; }
+                }).catch(function(error) { console.error(error); });
+                axios.get('/api/ai/quota').then(function(res) {
+                    if (res.data.code === 200) { that.quotaInfo = res.data.data; }
+                }).catch(function(error) { console.error(error); });
             },
             viewGeneration: function(id) {
-                // 查看生成详情
                 var that = this;
-                var item = this.history.content.find(function(i) { return i.id === id; });
-                if (item) {
-                    if (item.type === 'problem') {
-                        this.problemResult = item;
-                        setTimeout(function() { $('.tabular.menu .item[data-tab="problem"]').click(); }, 100);
-                    } else if (item.type === 'analysis') {
-                        this.analysisResult = item;
-                        setTimeout(function() { $('.tabular.menu .item[data-tab="analysis"]').click(); }, 100);
-                    } else if (item.type === 'solution') {
-                        this.solutionResult = item;
-                        setTimeout(function() { $('.tabular.menu .item[data-tab="solution"]').click(); }, 100);
-                    }
-                }
+                axios.get('/api/ai/generations/' + id).then(function(res) {
+                    if (res.data.code === 200) {
+                        that.generationDetail = res.data.data;
+                        $('#generation-detail-modal').modal('show');
+                    } else { alert('获取失败: ' + res.data.message); }
+                }).catch(function(error) { alert('获取失败: ' + error.message); });
+            },
+            deleteGeneration: function(id) {
+                if (!confirm('确定要删除这条生成记录吗？')) return;
+                var that = this;
+                axios.delete('/api/ai/generations/' + id).then(function(res) {
+                    if (res.data.code === 200) {
+                        alert('已删除');
+                        that.generationDetail = null;
+                        $('#generation-detail-modal').modal('hide');
+                        that.loadHistory();
+                        that.loadStats();
+                    } else { alert('删除失败: ' + res.data.message); }
+                }).catch(function(error) { alert('删除失败: ' + (error.message || '网络错误')); });
             },
             formatTime: function(timeStr) {
                 var date = new Date(timeStr);
                 return date.toLocaleString();
+            },
+            renderMarkdown: function(content) {
+                if (!content) return '';
+                try {
+                    return marked(content);
+                } catch (e) {
+                    return content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                }
             }
         }
     });

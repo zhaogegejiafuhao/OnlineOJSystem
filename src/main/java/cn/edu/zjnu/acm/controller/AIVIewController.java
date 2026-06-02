@@ -12,9 +12,4 @@ public class AIVIewController {
     public String aiAssistant() {
         return "ai/assistant";
     }
-    
-    @GetMapping("/generate")
-    public String aiGenerate() {
-        return "ai/generate";
-    }
 }

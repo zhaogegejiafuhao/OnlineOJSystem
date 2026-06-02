@@ -40,8 +40,9 @@ public class AIService {
     
     // 生成题目
     @Transactional
-    public AIGeneration generateProblem(String keywords, String difficulty) {
+    public AIGeneration generateProblem(String keywords, String difficulty, Long userId) {
         AIGeneration generation = new AIGeneration("problem", defaultModel, buildProblemPrompt(keywords, difficulty));
+        generation.setUserId(userId);
         generation.setStatus("PROCESSING");
         generation = aiGenerationRepository.save(generation);
         
@@ -69,8 +70,9 @@ public class AIService {
     
     // 生成题目解析
     @Transactional
-    public AIGeneration generateAnalysis(String problemContent) {
+    public AIGeneration generateAnalysis(String problemContent, Long userId) {
         AIGeneration generation = new AIGeneration("analysis", defaultModel, buildAnalysisPrompt(problemContent));
+        generation.setUserId(userId);
         generation.setStatus("PROCESSING");
         generation = aiGenerationRepository.save(generation);
         
@@ -95,8 +97,9 @@ public class AIService {
     
     // 生成参考解答
     @Transactional
-    public AIGeneration generateSolution(String problemContent, String language) {
+    public AIGeneration generateSolution(String problemContent, String language, Long userId) {
         AIGeneration generation = new AIGeneration("solution", defaultModel, buildSolutionPrompt(problemContent, language));
+        generation.setUserId(userId);
         generation.setStatus("PROCESSING");
         generation = aiGenerationRepository.save(generation);
         
@@ -120,7 +123,7 @@ public class AIService {
     }
     
     // 调用大语言模型API
-    private String callLLM(String prompt) throws Exception {
+    public String callLLM(String prompt) throws Exception {
         // 这里实现具体的LLM API调用
         // 不同的模型服务提供商有不同的API接口
         // 这里使用通用的实现，具体需要根据实际使用的模型服务调整
@@ -269,21 +272,53 @@ public class AIService {
     
     // 构建题目生成提示
     private String buildProblemPrompt(String keywords, String difficulty) {
-        return "请根据以下关键词生成一道编程题目：\n" +
+        return "请根据以下关键词生成一道编程题目及其参考解答：\n" +
                "关键词：" + keywords + "\n" +
                "难度级别：" + difficulty + "\n" +
+               "\n" +
+               "【重要】你必须严格按照以下JSON格式输出，不要输出任何JSON之外的内容：\n" +
+               "```json\n" +
+               "{\n" +
+               "  \"title\": \"题目名称（简短有力，不超过30字）\",\n" +
+               "  \"description\": \"题目描述（使用Markdown格式，数学公式用LaTeX：行内公式$...$，独立公式$$...$$）\",\n" +
+               "  \"input\": \"输入格式说明（使用Markdown格式，数学公式用LaTeX）\",\n" +
+               "  \"output\": \"输出格式说明（使用Markdown格式，数学公式用LaTeX）\",\n" +
+               "  \"sampleInput\": \"样例输入（纯文本）\",\n" +
+               "  \"sampleOutput\": \"样例输出（纯文本）\",\n" +
+               "  \"hint\": \"提示信息（使用Markdown格式，数学公式用LaTeX）\",\n" +
+               "  \"source\": \"题目来源\",\n" +
+               "  \"timeLimit\": 1000,\n" +
+               "  \"memoryLimit\": 65536,\n" +
+               "  \"score\": 100,\n" +
+               "  \"solution\": {\n" +
+               "    \"language\": \"cpp\",\n" +
+               "    \"code\": \"完整的C++参考解答代码\"\n" +
+               "  }\n" +
+               "}\n" +
+               "```\n" +
+               "\n" +
                "要求：\n" +
-               "1. 题目描述清晰完整\n" +
-               "2. 包含输入输出格式说明\n" +
-               "3. 提供2-3个样例输入输出\n" +
-               "4. 给出题目的难度分析\n" +
-               "5. 提供参考解答思路\n" +
-               "6. 确保题目具有实际编程价值\n" +
-               "7. 格式要求：\n" +
-               "   a. 使用Markdown格式\n" +
-               "   b. 每个部分之间使用空行分隔\n" +
-               "   c. 代码块使用```包裹\n" +
-               "   d. 确保生成的内容分段清晰，易于阅读";
+               "1. title：简短精炼的题目名称\n" +
+               "2. description：完整的题目背景和问题描述，使用Markdown格式\n" +
+               "   - 数学公式使用LaTeX语法：行内公式用 $...$ 包裹，独立公式用 $$...$$ 包裹\n" +
+               "   - 例如：$1 \\leq n \\leq 10^5$，$a_i$，$\\sum_{i=1}^{n} a_i$\n" +
+               "3. input：清晰描述输入格式，包括变量含义、取值范围，数学公式用LaTeX\n" +
+               "4. output：清晰描述输出格式和要求，数学公式用LaTeX\n" +
+               "5. sampleInput：提供2-3组样例输入，纯文本\n" +
+               "6. sampleOutput：与样例输入一一对应的样例输出，纯文本\n" +
+               "7. hint：解题提示、算法思路，数学公式用LaTeX\n" +
+               "8. solution.language：固定为 \"cpp\"\n" +
+               "9. solution.code：完整的C++参考解答代码，要求：\n" +
+               "   - 使用标准C++14语法\n" +
+               "   - 包含必要的头文件\n" +
+               "   - 代码能正确编译运行\n" +
+               "   - 从标准输入读取，输出到标准输出\n" +
+               "   - 处理所有边界情况\n" +
+               "10. timeLimit：时间限制（毫秒），简单题1000-2000，中等1000-3000，困难2000-5000\n" +
+               "11. memoryLimit：内存限制（KB），通常65536或131072\n" +
+               "12. score：题目分数，简单100，中等150，困难200\n" +
+               "\n" +
+               "注意：只输出JSON，不要输出任何其他文字说明！";
     }
     
     // 构建题目解析提示
@@ -340,18 +375,32 @@ public class AIService {
     
     // 获取生成记录列表
     public org.springframework.data.domain.Page<AIGeneration> getGenerations(int page, int size) {
-        return aiGenerationRepository.findAll(org.springframework.data.domain.PageRequest.of(page, size));
+        return aiGenerationRepository.findByDeletedFalseOrderByCreateTimeDesc(org.springframework.data.domain.PageRequest.of(page, size));
+    }
+    
+    public Long getDailyUsageCount(Long userId, Instant since) {
+        return aiGenerationRepository.countByUserIdAndCreateTimeAfter(userId, since);
+    }
+    
+    @org.springframework.transaction.annotation.Transactional
+    public void softDeleteGeneration(Long id) {
+        aiGenerationRepository.softDelete(id);
     }
     
     // 获取统计信息
     public AIGenerationStats getStats() {
-        long totalGenerations = aiGenerationRepository.count();
+        long totalGenerations = aiGenerationRepository.findByDeletedFalseOrderByCreateTimeDesc(
+                org.springframework.data.domain.PageRequest.of(0, 1)).getTotalElements();
         long completedGenerations = aiGenerationRepository.countByStatus("COMPLETED");
         
         Double avgResponseTimeObj = aiGenerationRepository.getAverageResponseTimeByModel(defaultModel);
         double avgResponseTime = avgResponseTimeObj != null ? avgResponseTimeObj : 0.0;
         
-        return new AIGenerationStats(totalGenerations, completedGenerations, avgResponseTime);
+        Instant oneDayAgo = Instant.now().minus(1, ChronoUnit.DAYS);
+        Double totalCostObj = aiGenerationRepository.getTotalCost(oneDayAgo);
+        double totalCost = totalCostObj != null ? totalCostObj : 0.0;
+        
+        return new AIGenerationStats(totalGenerations, completedGenerations, avgResponseTime, totalCost);
     }
     
     // 统计信息数据类
@@ -361,5 +410,6 @@ public class AIService {
         private long totalGenerations;
         private long completedGenerations;
         private double avgResponseTime;
+        private double totalCost;
     }
 }

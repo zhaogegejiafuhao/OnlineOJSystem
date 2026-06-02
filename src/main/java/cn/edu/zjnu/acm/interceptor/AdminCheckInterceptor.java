@@ -27,7 +27,7 @@ public class AdminCheckInterceptor implements HandlerInterceptor {
             if (user != null) {
                 log.info("super admin page intercepted:" + user.getId() + " " + user.getUsername());
                 Teacher teacher = teacherRepository.findByUser(user).orElse(null);
-                if (teacher.getPrivilege() == Teacher.ADMIN) {
+                if (teacher != null && teacher.getPrivilege() == Teacher.ADMIN) {
                     return true;
                 }
             }

@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@Service
+@Deprecated
 public class AIModelService {
     private final RestTemplate restTemplate;
     

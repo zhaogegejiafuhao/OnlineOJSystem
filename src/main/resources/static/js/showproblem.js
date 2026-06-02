@@ -333,6 +333,17 @@ var prom = new Vue({
                     });
                     $(this).attr("id", "");
                 });
+                if (typeof renderMathInElement === 'function') {
+                    renderMathInElement(document.body, {
+                        delimiters: [
+                            {left: "$$", right: "$$", display: true},
+                            {left: "$", right: "$", display: false},
+                            {left: "\\(", right: "\\)", display: false},
+                            {left: "\\[", right: "\\]", display: true}
+                        ],
+                        ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"]
+                    });
+                }
             });
             that.dataready = true;
         }).catch(function (e) {

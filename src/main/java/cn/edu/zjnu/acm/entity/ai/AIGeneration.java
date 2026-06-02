@@ -50,6 +50,12 @@ public class AIGeneration {
     @Column(columnDefinition = "DOUBLE DEFAULT 0")
     private Double responseTime = 0.0;
     
+    @Column(columnDefinition = "BIGINT DEFAULT NULL")
+    private Long userId;
+    
+    @Column(columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean deleted = false;
+    
     public AIGeneration() {
     }
     
