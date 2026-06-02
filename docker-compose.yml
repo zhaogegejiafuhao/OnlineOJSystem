@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   oj-mysql:
-    image: mysql:8.0.19
+    image: registry.cn-hangzhou.aliyuncs.com/library/mysql:8.0.19
     container_name: oj-mysql
     restart: always
     environment:
@@ -22,7 +22,7 @@ services:
       retries: 10
 
   oj-redis:
-    image: redis:latest
+    image: registry.cn-hangzhou.aliyuncs.com/library/redis:latest
     container_name: oj-redis
     restart: always
     ports:
