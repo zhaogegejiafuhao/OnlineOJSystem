@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   oj-mysql:
-    image: registry.cn-hangzhou.aliyuncs.com/library/mysql:8.0.19
+    image: mysql:8.0.19
     container_name: oj-mysql
     restart: always
     environment:
@@ -22,7 +22,7 @@ services:
       retries: 10
 
   oj-redis:
-    image: registry.cn-hangzhou.aliyuncs.com/library/redis:latest
+    image: redis:latest
     container_name: oj-redis
     restart: always
     ports:
@@ -44,6 +44,7 @@ services:
     environment:
       SERVICE_PORT: "5001"
       PASSWORD: "iAMaPASSWORD"
+      OJ_BACKEND_CALLBACK: "http://host.docker.internal:8080/judge/callback"
     depends_on:
       oj-mysql:
         condition: service_healthy
